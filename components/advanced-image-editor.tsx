@@ -20,6 +20,8 @@ import {
   Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useAuth } from '@/contexts/AuthContext';
+import UpgradeModal from '@/components/modals/UpgradeModal';
 
 interface AdvancedImageEditorProps {
   imageUrl: string;
@@ -29,6 +31,7 @@ export default function AdvancedImageEditor({
   imageUrl,
 }: AdvancedImageEditorProps) {
   const router = useRouter();
+  const { user, userProfile } = useAuth();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
   const cursorCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -67,6 +70,10 @@ export default function AdvancedImageEditor({
   const [, setMousePos] = useState({ x: 0, y: 0 });
   const [showCursor, setShowCursor] = useState(false);
   const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null);
+  
+  // Modal states
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeFeature, setUpgradeFeature] = useState<'upscale' | 'expand'>('upscale');
 
   useEffect(() => {
     const img = new Image();
@@ -432,8 +439,39 @@ export default function AdvancedImageEditor({
     });
   };
 
+  // Check if user can use Pro features
+  const canUseProFeature = (feature: 'upscale' | 'expand') => {
+    if (!user) return false;
+    if (!userProfile) return false;
+    if (userProfile.subscription_tier !== 'pro') return false;
+    
+    const quotaField = feature === 'upscale' ? 'upscale_quota' : 'expand_quota';
+    const usedField = feature === 'upscale' ? 'upscale_used' : 'expand_used';
+    
+    return userProfile[usedField] < userProfile[quotaField];
+  };
+
+  const handleProFeatureClick = (feature: 'upscale' | 'expand') => {
+    if (!user || !userProfile || userProfile.subscription_tier !== 'pro') {
+      setUpgradeFeature(feature);
+      setShowUpgradeModal(true);
+      return false;
+    }
+    
+    if (!canUseProFeature(feature)) {
+      // Show quota exceeded modal
+      alert(`You've reached your monthly ${feature} limit. Upgrade or wait for next month's reset.`);
+      return false;
+    }
+    
+    return true;
+  };
+
   const processImageUpscale = async () => {
     if (!originalImage) return;
+    
+    // Check Pro access
+    if (!handleProFeatureClick('upscale')) return;
 
     setIsUpscaling(true);
     setUpscaleProgress(0);
@@ -641,6 +679,9 @@ export default function AdvancedImageEditor({
       );
       return;
     }
+
+    // Check Pro access
+    if (!handleProFeatureClick('expand')) return;
 
     setIsExpanding(true);
     setExpandProgress(5); // Show initial progress
@@ -1442,6 +1483,14 @@ export default function AdvancedImageEditor({
           </div>
         </div>
       </div>
+      
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        feature={upgradeFeature}
+        isAuthenticated={!!user}
+      />
     </div>
   );
 }

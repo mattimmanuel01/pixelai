@@ -21,6 +21,7 @@ import {
 } from 'lucide-react'
 import { removeBackground } from '@imgly/background-removal'
 import { useRouter } from 'next/navigation'
+import Header from '@/components/header'
 
 interface ProcessedImage {
   id: string
@@ -167,6 +168,8 @@ export default function PremiumUploader() {
 
   return (
     <div className="min-h-screen bg-white">
+      {/* Header */}
+      <Header />
       {/* Clean Hero Section */}
       <div className="bg-gradient-to-b from-gray-50 to-white border-b border-gray-100">
         <div className="max-w-4xl mx-auto px-6 py-20">
@@ -177,15 +180,170 @@ export default function PremiumUploader() {
             </div>
             
             <h1 className="text-5xl font-bold text-gray-900 mb-6 leading-tight">
-              Remove backgrounds
+              AI-Powered Image Suite
               <br />
-              <span className="text-blue-600">in seconds</span>
+              <span className="text-blue-600">for Professionals</span>
             </h1>
             
             <p className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto">
-              Professional-quality background removal and AI image editing. 
-              No subscriptions, no watermarks, just results.
+              Remove backgrounds for free. Enhance with AI upscaling and generative expansion. 
+              Professional results in seconds.
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Features Section */}
+      <div id="features" className="py-16 bg-white">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Everything you need for image editing
+            </h2>
+            <p className="text-gray-600 max-w-2xl mx-auto">
+              From basic background removal to advanced AI enhancement - all in one platform
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            {/* Background Removal - Free */}
+            <div className="text-center p-8 bg-green-50 border border-green-200 rounded-2xl">
+              <div className="w-16 h-16 bg-green-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <ImageIcon className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Background Removal</h3>
+              <p className="text-gray-600 mb-6">
+                Remove backgrounds instantly with AI precision. Perfect for product photos, portraits, and marketing materials.
+              </p>
+              <div className="inline-flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-full text-sm font-medium">
+                <Check className="w-4 h-4" />
+                Always Free
+              </div>
+            </div>
+
+            {/* AI Upscaler - Pro */}
+            <div className="text-center p-8 bg-blue-50 border border-blue-200 rounded-2xl">
+              <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <Zap className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">AI Upscaler</h3>
+              <p className="text-gray-600 mb-6">
+                Enhance image quality and resolution using advanced AI. Restore old photos and improve low-resolution images.
+              </p>
+              <div className="inline-flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-full text-sm font-medium">
+                <Sparkles className="w-4 h-4" />
+                Pro Feature
+              </div>
+            </div>
+
+            {/* Generative Expand - Pro */}
+            <div className="text-center p-8 bg-purple-50 border border-purple-200 rounded-2xl">
+              <div className="w-16 h-16 bg-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <Edit className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">Generative Expand</h3>
+              <p className="text-gray-600 mb-6">
+                Expand your images beyond their borders with AI-generated content. Perfect for social media aspect ratios.
+              </p>
+              <div className="inline-flex items-center gap-2 bg-purple-500 text-white px-4 py-2 rounded-full text-sm font-medium">
+                <Sparkles className="w-4 h-4" />
+                Pro Feature
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Pricing Section */}
+      <div id="pricing" className="py-16 bg-gray-50">
+        <div className="max-w-4xl mx-auto px-6">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Simple, transparent pricing
+            </h2>
+            <p className="text-gray-600">
+              Start free, upgrade when you need advanced AI features
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto">
+            {/* Free Tier */}
+            <div className="bg-white border border-gray-200 rounded-2xl p-8">
+              <div className="text-center">
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Free</h3>
+                <div className="text-4xl font-bold text-gray-900 mb-6">
+                  $0<span className="text-lg font-normal text-gray-500">/month</span>
+                </div>
+                <ul className="space-y-4 text-left mb-8">
+                  <li className="flex items-center gap-3">
+                    <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                    <span>Unlimited background removal</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                    <span>High-quality PNG exports</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                    <span>No watermarks</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <Check className="w-5 h-5 text-green-500 flex-shrink-0" />
+                    <span>Basic editing tools</span>
+                  </li>
+                </ul>
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => router.push('/signup')}
+                >
+                  Get Started Free
+                </Button>
+              </div>
+            </div>
+
+            {/* Pro Tier */}
+            <div className="bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-2xl p-8 relative">
+              <div className="absolute top-4 right-4">
+                <div className="bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full text-sm font-medium">
+                  Popular
+                </div>
+              </div>
+              <div className="text-center">
+                <h3 className="text-2xl font-bold mb-2">Pro</h3>
+                <div className="text-4xl font-bold mb-6">
+                  $9<span className="text-lg font-normal opacity-80">/month</span>
+                </div>
+                <ul className="space-y-4 text-left mb-8">
+                  <li className="flex items-center gap-3">
+                    <Check className="w-5 h-5 text-green-400 flex-shrink-0" />
+                    <span>Everything in Free</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <Check className="w-5 h-5 text-green-400 flex-shrink-0" />
+                    <span>50 AI upscales per month</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <Check className="w-5 h-5 text-green-400 flex-shrink-0" />
+                    <span>50 generative expansions per month</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <Check className="w-5 h-5 text-green-400 flex-shrink-0" />
+                    <span>Priority processing</span>
+                  </li>
+                  <li className="flex items-center gap-3">
+                    <Check className="w-5 h-5 text-green-400 flex-shrink-0" />
+                    <span>Project history & dashboard</span>
+                  </li>
+                </ul>
+                <Button 
+                  className="w-full bg-white text-blue-600 hover:bg-gray-100"
+                  onClick={() => router.push('/signup')}
+                >
+                  Start Pro Trial
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>

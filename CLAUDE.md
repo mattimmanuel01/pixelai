@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
-**PixelAI** is a Next.js 15 SaaS application for AI-powered image editing, specializing in background removal and generative fill capabilities.
+**PixelAI** is a Next.js 15 SaaS application for AI-powered image editing, featuring background removal, AI upscaling, and generative expansion with user authentication and subscription management.
 
 ## Development Commands
 
@@ -24,48 +24,68 @@ npm run lint         # ESLint code checking
 ### Tech Stack
 - **Frontend**: Next.js 15 + React 19 + TypeScript
 - **UI**: Shadcn/UI components with Tailwind CSS v4
+- **Authentication**: Supabase Auth with React Context
 - **AI Processing**: 
   - Client-side: `@imgly/background-removal` (free, fast)
-  - Server-side: Replicate API with Stable Diffusion Inpainting
+  - Server-side: Replicate API (AI upscaling + generative expansion)
 - **Backend**: Supabase (auth, database, storage)
 - **File Upload**: react-dropzone with drag-and-drop
 
 ### App Structure
 ```
 /app/
-├── api/generative-fill/     # Replicate API integration
-├── editor/                  # Canvas-based advanced editor
-└── page.tsx                 # Main upload interface
+├── api/
+│   ├── ai-upscaler/        # AI upscaling endpoint
+│   ├── reframe-image/      # Generative expansion endpoint
+│   └── poll-prediction/    # Polling for async results
+├── login/                  # Authentication pages
+├── signup/
+├── dashboard/              # User dashboard with quota tracking
+├── editor/                 # Canvas-based advanced editor
+└── page.tsx               # Landing page with pricing
 
 /components/
-├── ui/                      # 9 Shadcn components
-├── premium-uploader.tsx     # Main upload + background removal
-└── advanced-image-editor.tsx # Canvas editor with brush tools
+├── ui/                     # Shadcn components (button, card, etc.)
+├── header.tsx             # Navigation with auth state
+├── premium-uploader.tsx   # Landing page + upload interface
+└── advanced-image-editor.tsx # Canvas editor with AI features
+
+/contexts/
+└── AuthContext.tsx        # Authentication state management
+
+/lib/
+└── supabase.ts           # Database helpers and auth functions
 ```
 
 ### Key Features Architecture
 
-#### Background Removal Flow
+#### User Authentication Flow
+1. Landing page with pricing tiers (Free vs Pro)
+2. Sign up/login via Supabase Auth
+3. User profile creation with quota tracking
+4. Dashboard with usage statistics and project history
+
+#### Background Removal Flow (Free)
 1. Upload via drag-and-drop (`premium-uploader.tsx`)
 2. Client-side processing with `@imgly/background-removal`
 3. Progress tracking with real-time updates
 4. Instant PNG download with transparency
+5. Save to user's project history (if logged in)
 
-#### Generative Fill Flow
+#### AI Upscaling Flow (Pro)
 1. Navigate to `/editor?image=<url>` (`advanced-image-editor.tsx`)
-2. Select "Generative Fill" tab
-3. Paint mask with brush/eraser tools on HTML5 canvas
-4. Enter text prompt for desired content
-5. Submit to `/api/generative-fill` → Replicate API
-6. Result overlays on original image
+2. Select "AI Upscaler" tab
+3. Submit to `/api/ai-upscaler` → Replicate API
+4. Before/after drag comparison interface
+5. Quota tracking and deduction
 
-#### Image Expansion Flow
+#### Image Expansion Flow (Pro)
 1. Navigate to `/editor?image=<url>` (`advanced-image-editor.tsx`)
 2. Select "Expand Image" tab
-3. Choose aspect ratio (16:9, 4:3, 1:1, 9:16)
+3. Choose preset aspect ratios or freestyle mode
 4. Enter text prompt for expanded area content
 5. Submit to `/api/reframe-image` → Luma Reframe API
-6. Canvas resizes to show expanded image
+6. Quota tracking and deduction
 
 ## Environment Configuration
 
@@ -141,15 +161,63 @@ All Replicate API calls use polling to avoid Vercel's 15-second timeout:
 - `PremiumUploader`: Main interface with file handling
 - `AdvancedImageEditor`: Full canvas editor with tools
 
+## Pricing & Subscription Model
+
+### Free Tier
+- Unlimited background removal
+- High-quality PNG exports
+- No watermarks
+- Basic editing tools
+- Project history (if logged in)
+
+### Pro Tier ($9/month)
+- Everything in Free
+- 50 AI upscales per month
+- 50 generative expansions per month
+- Priority processing
+- Advanced editing features
+
+## Database Schema
+
+### Users Table
+```sql
+CREATE TABLE users (
+  id UUID PRIMARY KEY REFERENCES auth.users(id),
+  email TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  subscription_tier TEXT DEFAULT 'free',
+  upscale_quota INTEGER DEFAULT 0,
+  expand_quota INTEGER DEFAULT 0,
+  upscale_used INTEGER DEFAULT 0,
+  expand_used INTEGER DEFAULT 0
+);
+```
+
+### User Images Table
+```sql
+CREATE TABLE user_images (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES users(id),
+  original_url TEXT NOT NULL,
+  processed_url TEXT,
+  operation_type TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  file_size INTEGER NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
 ## Current State
 - ✅ Background removal working
-- ✅ Generative fill working  
-- ✅ Canvas editor with proper masking
+- ✅ AI upscaling working with before/after comparison
 - ✅ Image expansion/reframing working
-- ✅ Tabbed interface for Fill vs Expand
-- ❌ Supabase auth not integrated
-- ❌ Payment system not implemented
-- ❌ User dashboard pending
+- ✅ User authentication with Supabase
+- ✅ User dashboard with quota tracking
+- ✅ Landing page with pricing tiers
+- ✅ Project history and management
+- ❌ Payment system not implemented (Stripe ready)
+- ❌ Email confirmations and notifications
+- ❌ Image persistence after page refresh
 
 ## Common Issues
 

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import CleanHeader from "@/components/clean-header";
+import { AuthProvider } from '@/contexts/AuthContext';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PixelAI - AI Image Editor",
-  description: "Remove backgrounds and enhance images with AI-powered tools",
+  title: "PixelAI - AI Image Suite for Professionals",
+  description: "Remove backgrounds for free. Enhance with AI upscaling and generative expansion. Professional results in seconds.",
 };
 
 export default function RootLayout({
@@ -28,8 +28,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <CleanHeader />
-        {children}
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
   );
