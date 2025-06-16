@@ -23,16 +23,40 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // First, upload the image to Supabase Storage
+    console.log('Uploading image to Supabase Storage...')
+    const uploadResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/upload-image`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        imageData: image_data,
+        filename: 'temp-image.png'
+      }),
+    })
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text()
+      console.error('Upload failed:', errorText)
+      return NextResponse.json(
+        { error: 'Failed to upload image' },
+        { status: 500 }
+      )
+    }
+
+    const { publicUrl } = await uploadResponse.json()
+    console.log('Image uploaded successfully:', publicUrl)
+
     // Get the latest version of the model first
     const model = await replicate.models.get("luma", "reframe-image")
     const latestVersion = model.latest_version.id
 
-    // Create a prediction instead of waiting for completion
-    // Pass the base64 data directly as 'image' parameter instead of 'image_url'
+    // Create a prediction with the public URL
     const prediction = await replicate.predictions.create({
       version: latestVersion,
       input: {
-        image: image_data,  // Use 'image' for base64 data
+        image_url: publicUrl,  // Use public URL from Supabase Storage
         aspect_ratio: aspect_ratio,
         prompt: prompt || "high quality, professional, detailed"
       }
