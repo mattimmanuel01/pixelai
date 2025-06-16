@@ -73,14 +73,28 @@ export default function AdvancedImageEditor({
       setOriginalImage(img);
       initializeCanvas(img);
     };
+    img.onerror = () => {
+      console.error("Failed to load image:", imageUrl);
+    };
     img.src = imageUrl;
+
+    return () => {
+      // Cleanup image reference
+      img.onload = null;
+      img.onerror = null;
+    };
   }, [imageUrl]);
 
   const initializeCanvas = (img: HTMLImageElement) => {
     const canvas = canvasRef.current;
     const maskCanvas = maskCanvasRef.current;
     const cursorCanvas = cursorCanvasRef.current;
-    if (!canvas || !maskCanvas || !cursorCanvas) return;
+    
+    // Validate all canvas elements exist and are connected to DOM
+    if (!canvas || !maskCanvas || !cursorCanvas || 
+        !canvas.isConnected || !maskCanvas.isConnected || !cursorCanvas.isConnected) {
+      return;
+    }
 
     const ctx = canvas.getContext("2d");
     const maskCtx = maskCanvas.getContext("2d");
@@ -217,7 +231,7 @@ export default function AdvancedImageEditor({
 
   const clearMask = () => {
     const canvas = maskCanvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !canvas.isConnected) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -229,7 +243,7 @@ export default function AdvancedImageEditor({
   const updateCursor = useCallback(
     (e: React.MouseEvent) => {
       const canvas = cursorCanvasRef.current;
-      if (!canvas) return;
+      if (!canvas || !canvas.isConnected) return;
 
       const rect = canvas.getBoundingClientRect();
       const x = (e.clientX - rect.left) * (canvas.width / rect.width);
@@ -260,7 +274,7 @@ export default function AdvancedImageEditor({
   const handleMouseLeave = () => {
     setShowCursor(false);
     const canvas = cursorCanvasRef.current;
-    if (canvas) {
+    if (canvas && canvas.isConnected) {
       const ctx = canvas.getContext("2d");
       ctx?.clearRect(0, 0, canvas.width, canvas.height);
     }
@@ -463,16 +477,6 @@ export default function AdvancedImageEditor({
       }, `convertToBase64=true`);
 
       if (result.output) {
-        // Make sure the original image is still drawn on the canvas for comparison
-        if (originalImage && canvas) {
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(originalImage, 0, 0, canvas.width, canvas.height);
-            console.log("Redrawn original image on canvas for comparison");
-          }
-        }
-        
         setUpscaledImage(result.output);
         setUpscaleProgress(100);
         console.log("Upscaled image received as base64");
@@ -879,30 +883,27 @@ export default function AdvancedImageEditor({
                         }}
                       >
                         {/* Background - Upscaled Image (After) */}
-                        <img
-                          src={upscaledImage}
-                          alt="Upscaled"
-                          className="absolute top-0 left-0 w-full h-full object-contain"
-                          onLoad={() => console.log('Upscaled image loaded successfully')}
-                          onError={() => console.error('Failed to load upscaled image')}
-                        />
+                        <div className="absolute top-0 left-0 w-full h-full">
+                          <img
+                            src={upscaledImage}
+                            alt="Upscaled"
+                            className="w-full h-full object-contain"
+                            onLoad={() => console.log('Upscaled image loaded successfully')}
+                            onError={() => console.error('Failed to load upscaled image')}
+                          />
+                        </div>
                         
-                        {/* Foreground - Original Canvas (Before) - reveals from right */}
+                        {/* Foreground - Original Image (Before) - clips from right side */}
                         <div
-                          className="absolute top-0 h-full overflow-hidden"
+                          className="absolute top-0 left-0 w-full h-full overflow-hidden"
                           style={{
-                            left: `${sliderPosition}%`,
-                            width: `${100 - sliderPosition}%`,
+                            clipPath: `inset(0 0 0 ${sliderPosition}%)`
                           }}
                         >
-                          <canvas
-                            ref={canvasRef}
+                          <img
+                            src={imageUrl}
+                            alt="Original"
                             className="w-full h-full object-contain"
-                            style={{
-                              width: `${800}px`,
-                              height: `${600}px`,
-                              marginLeft: `-${sliderPosition}%`
-                            }}
                           />
                         </div>
                         
