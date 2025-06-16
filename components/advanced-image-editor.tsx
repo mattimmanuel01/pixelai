@@ -17,6 +17,7 @@ import {
   RectangleHorizontal,
   Move,
   RotateCcw,
+  Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -37,11 +38,15 @@ export default function AdvancedImageEditor({
   const [prompt, setPrompt] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [activeFeature, setActiveFeature] = useState<"fill" | "expand">("fill");
+  const [activeFeature, setActiveFeature] = useState<"upscale" | "expand">("upscale");
   const [expandPrompt, setExpandPrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [isExpanding, setIsExpanding] = useState(false);
   const [expandProgress, setExpandProgress] = useState(0);
+  const [isUpscaling, setIsUpscaling] = useState(false);
+  const [upscaleProgress, setUpscaleProgress] = useState(0);
+  const [upscaledImage, setUpscaledImage] = useState<string | null>(null);
+  const [sliderPosition, setSliderPosition] = useState(50);
   const [expansionMode, setExpansionMode] = useState<"preset" | "freestyle">(
     "preset"
   );
@@ -261,6 +266,73 @@ export default function AdvancedImageEditor({
     }
   };
 
+  const pollForPrediction = async (
+    predictionId: string,
+    onProgress?: (progress: number) => void,
+    queryParams?: string
+  ): Promise<unknown> => {
+    return new Promise((resolve, reject) => {
+      let attempts = 0;
+      const maxAttempts = 120; // 2 minutes max (2 seconds * 120)
+
+      const poll = async () => {
+        try {
+          const url = `/api/poll-prediction?id=${predictionId}${queryParams ? `&${queryParams}` : ''}`;
+          const response = await fetch(url);
+
+          if (!response.ok) {
+            const errorData = await response
+              .json()
+              .catch(() => ({ error: "Unknown error" }));
+            throw new Error(
+              errorData.error ||
+                `HTTP ${response.status}: Failed to poll prediction`
+            );
+          }
+
+          const prediction = await response.json();
+          console.log(
+            `Poll attempt ${attempts + 1}:`,
+            prediction.status,
+            prediction
+          );
+
+          // Update progress based on status
+          if (onProgress) {
+            if (prediction.status === "starting") {
+              onProgress(10);
+            } else if (prediction.status === "processing") {
+              onProgress(Math.min(20 + attempts * 2, 85));
+            }
+          }
+
+          if (prediction.status === "succeeded") {
+            if (onProgress) onProgress(100);
+            resolve(prediction);
+          } else if (
+            prediction.status === "failed" ||
+            prediction.status === "canceled"
+          ) {
+            console.error("Prediction failed:", prediction.error);
+            reject(new Error("Prediction failed"));
+          } else {
+            // Still processing, poll again
+            attempts++;
+            if (attempts >= maxAttempts) {
+              reject(new Error("Prediction timed out"));
+            } else {
+              setTimeout(poll, 2000); // Poll every 2 seconds
+            }
+          }
+        } catch (error) {
+          reject(error);
+        }
+      };
+
+      poll();
+    });
+  };
+
   const pollPrediction = async (
     predictionId: string,
     onProgress?: (progress: number) => void
@@ -328,116 +400,95 @@ export default function AdvancedImageEditor({
     });
   };
 
-  const processGenerativeFill = async () => {
-    if (!originalImage || !prompt.trim()) return;
+  const processImageUpscale = async () => {
+    if (!originalImage) return;
 
-    setIsProcessing(true);
-    setProgress(0);
+    setIsUpscaling(true);
+    setUpscaleProgress(0);
 
     try {
       const canvas = canvasRef.current;
-      const maskCanvas = maskCanvasRef.current;
-      if (!canvas || !maskCanvas) return;
+      if (!canvas) return;
 
-      // Create a proper mask - convert red overlay to white mask
-      const tempCanvas = document.createElement("canvas");
-      tempCanvas.width = maskCanvas.width;
-      tempCanvas.height = maskCanvas.height;
-      const tempCtx = tempCanvas.getContext("2d");
-
-      if (tempCtx) {
-        // Get the red overlay data
-        const imageData = maskCanvas
-          .getContext("2d")!
-          .getImageData(0, 0, maskCanvas.width, maskCanvas.height);
-        const data = imageData.data;
-
-        // Convert red areas to white mask
-        for (let i = 0; i < data.length; i += 4) {
-          const alpha = data[i + 3];
-          if (alpha > 0) {
-            // Red area exists, make it white in mask
-            data[i] = 255; // R
-            data[i + 1] = 255; // G
-            data[i + 2] = 255; // B
-            data[i + 3] = 255; // A
-          } else {
-            // No red area, make it black in mask
-            data[i] = 0; // R
-            data[i + 1] = 0; // G
-            data[i + 2] = 0; // B
-            data[i + 3] = 255; // A
-          }
-        }
-
-        tempCtx.putImageData(imageData, 0, 0);
-      }
-
-      // Convert canvases to base64
+      // Convert canvas to base64
       const imageBase64 = canvas.toDataURL("image/png");
-      const maskBase64 = tempCanvas.toDataURL("image/png");
+
+      console.log("Starting image upscale...");
+
+      // Start progress simulation
+      const progressInterval = setInterval(() => {
+        setUpscaleProgress(prev => {
+          if (prev >= 90) return prev; // Stop at 90% until real completion
+          return prev + Math.random() * 10;
+        });
+      }, 1000);
 
       // Start the prediction
-      const response = await fetch("/api/generative-fill", {
+      const response = await fetch("/api/ai-upscaler", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          image: imageBase64,
-          mask: maskBase64,
-          prompt: prompt.trim(),
+          image_data: imageBase64,
         }),
       });
 
-      console.log("Generative fill response:", response);
-      console.log("Response status:", response.status);
-      console.log("Response statusText:", response.statusText);
-
-      // Log response body regardless of status
-      const responseText = await response.text();
-      console.log("Response body:", responseText);
+      console.log("Upscale response:", response.status, response.statusText);
 
       if (!response.ok) {
+        const responseText = await response.text();
+        console.error("Upscale error response:", responseText);
         let errorData;
         try {
           errorData = JSON.parse(responseText);
         } catch {
           errorData = { error: responseText || "Unknown error" };
         }
-        console.log("Error data:", errorData);
         throw new Error(
           errorData.error ||
-            `HTTP ${response.status}: Failed to start generative fill`
+            `HTTP ${response.status}: Failed to start image upscaling`
         );
       }
 
-      const responseData = JSON.parse(responseText);
-      const { predictionId } = responseData;
+      const initialData = await response.json();
+      console.log("Upscale prediction started:", initialData.predictionId);
 
-      // Poll for completion
-      const prediction = await pollPrediction(predictionId, (progress) => {
-        setProgress(progress);
-      });
+      // Clear progress simulation and start polling
+      clearInterval(progressInterval);
 
-      if (prediction.output && prediction.output[0]) {
-        const resultImg = new Image();
-        resultImg.crossOrigin = "anonymous";
-        resultImg.onload = () => {
+      // Poll for completion with base64 conversion
+      const result = await pollForPrediction(initialData.predictionId, (progress) => {
+        setUpscaleProgress(90 + (progress * 10 / 100)); // Show 90-100%
+      }, `convertToBase64=true`);
+
+      if (result.output) {
+        // Make sure the original image is still drawn on the canvas for comparison
+        if (originalImage && canvas) {
           const ctx = canvas.getContext("2d");
           if (ctx) {
-            ctx.drawImage(resultImg, 0, 0, canvas.width, canvas.height);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(originalImage, 0, 0, canvas.width, canvas.height);
+            console.log("Redrawn original image on canvas for comparison");
           }
-        };
-        resultImg.src = prediction.output[0];
+        }
+        
+        setUpscaledImage(result.output);
+        setUpscaleProgress(100);
+        console.log("Upscaled image received as base64");
+        console.log("Original bounds:", originalBounds);
+        console.log("Canvas dimensions:", canvas.width, canvas.height);
+        console.log("Slider position:", sliderPosition);
+      } else {
+        throw new Error("No upscaled image in response");
       }
     } catch (error) {
-      console.error("Generative fill failed:", error);
-      alert("Failed to process generative fill. Please try again.");
+      console.error("Image upscaling failed:", error);
+      console.error("Error details:", error instanceof Error ? error.message : String(error));
+      alert(`Failed to process image upscaling: ${error instanceof Error ? error.message : String(error)}. Please try again.`);
     } finally {
-      setIsProcessing(false);
-
-      setTimeout(() => setProgress(0), 2000);
+      setIsUpscaling(false);
+      setTimeout(() => setUpscaleProgress(0), 2000);
     }
   };
 
@@ -799,69 +850,129 @@ export default function AdvancedImageEditor({
 
                 {/* Main Canvas Container */}
                 <div className="relative border-2 border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
-                  <canvas
-                    ref={canvasRef}
-                    className="block max-w-full max-h-full"
-                    style={{
-                      width: `${originalBounds.width}px`,
-                      height: `${originalBounds.height}px`,
-                      maxWidth: "800px",
-                      maxHeight: "600px",
-                    }}
-                  />
-                  <canvas
-                    ref={maskCanvasRef}
-                    className={`absolute top-0 left-0 ${
-                      activeFeature === "fill"
-                        ? "pointer-events-auto"
-                        : "pointer-events-none"
-                    }`}
-                    style={{
-                      cursor: activeFeature === "fill" ? "none" : "default",
-                      width: `${originalBounds.width}px`,
-                      height: `${originalBounds.height}px`,
-                      maxWidth: "800px",
-                      maxHeight: "600px",
-                      opacity: activeFeature === "fill" ? 0.4 : 0,
-                      display: activeFeature === "fill" ? "block" : "none",
-                    }}
-                    onMouseDown={
-                      activeFeature === "fill" ? startDrawing : undefined
-                    }
-                    onMouseUp={
-                      activeFeature === "fill" ? stopDrawing : undefined
-                    }
-                    onMouseMove={
-                      activeFeature === "fill"
-                        ? (e) => {
-                            draw(e);
-                            updateCursor(e);
-                          }
-                        : undefined
-                    }
-                    onMouseEnter={
-                      activeFeature === "fill" ? handleMouseEnter : undefined
-                    }
-                    onMouseLeave={
-                      activeFeature === "fill"
-                        ? () => {
-                            stopDrawing();
-                            handleMouseLeave();
-                          }
-                        : undefined
-                    }
-                  />
-                  <canvas
-                    ref={cursorCanvasRef}
-                    className="absolute top-0 left-0 pointer-events-none"
-                    style={{
-                      width: `${originalBounds.width}px`,
-                      height: `${originalBounds.height}px`,
-                      maxWidth: "800px",
-                      maxHeight: "600px",
-                      display: activeFeature === "fill" ? "block" : "none",
-                    }}
-                  />
+                  {activeFeature === "upscale" && upscaledImage ? (
+                    /* Before/After Drag Comparison */
+                    <div className="w-full max-w-4xl mx-auto">
+                      <div 
+                        className="relative cursor-ew-resize bg-gray-100 rounded-lg border-2 border-gray-200 overflow-hidden"
+                        style={{
+                          width: "800px",
+                          height: "600px",
+                          maxWidth: "100%",
+                        }}
+                        onMouseDown={(e) => {
+                          const container = e.currentTarget;
+                          const handleMouseMove = (moveEvent: MouseEvent) => {
+                            const rect = container.getBoundingClientRect();
+                            const x = moveEvent.clientX - rect.left;
+                            const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
+                            setSliderPosition(percentage);
+                          };
+                          
+                          const handleMouseUp = () => {
+                            document.removeEventListener('mousemove', handleMouseMove);
+                            document.removeEventListener('mouseup', handleMouseUp);
+                          };
+                          
+                          document.addEventListener('mousemove', handleMouseMove);
+                          document.addEventListener('mouseup', handleMouseUp);
+                        }}
+                      >
+                        {/* Background - Upscaled Image (After) */}
+                        <img
+                          src={upscaledImage}
+                          alt="Upscaled"
+                          className="absolute top-0 left-0 w-full h-full object-contain"
+                          onLoad={() => console.log('Upscaled image loaded successfully')}
+                          onError={() => console.error('Failed to load upscaled image')}
+                        />
+                        
+                        {/* Foreground - Original Canvas (Before) - reveals from right */}
+                        <div
+                          className="absolute top-0 h-full overflow-hidden"
+                          style={{
+                            left: `${sliderPosition}%`,
+                            width: `${100 - sliderPosition}%`,
+                          }}
+                        >
+                          <canvas
+                            ref={canvasRef}
+                            className="w-full h-full object-contain"
+                            style={{
+                              width: `${800}px`,
+                              height: `${600}px`,
+                              marginLeft: `-${sliderPosition}%`
+                            }}
+                          />
+                        </div>
+                        
+                        {/* Divider Line */}
+                        <div
+                          className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg z-10"
+                          style={{ left: `${sliderPosition}%` }}
+                        />
+                        
+                        {/* Drag Handle */}
+                        <div
+                          className="absolute w-8 h-8 bg-white rounded-full shadow-lg border-2 border-blue-500 flex items-center justify-center z-20"
+                          style={{ 
+                            left: `calc(${sliderPosition}% - 16px)`, 
+                            top: 'calc(50% - 16px)',
+                            cursor: 'ew-resize'
+                          }}
+                        >
+                          <div className="flex gap-0.5">
+                            <div className="w-0.5 h-4 bg-blue-500 rounded"></div>
+                            <div className="w-0.5 h-4 bg-blue-500 rounded"></div>
+                          </div>
+                        </div>
+                        
+                        {/* Before/After Labels */}
+                        <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1 rounded text-sm font-medium z-10">
+                          After
+                        </div>
+                        <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded text-sm font-medium z-10">
+                          Before
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    /* Regular Canvas */
+                    <>
+                      <canvas
+                        ref={canvasRef}
+                        className="block max-w-full max-h-full"
+                        style={{
+                          width: `${originalBounds.width}px`,
+                          height: `${originalBounds.height}px`,
+                          maxWidth: "800px",
+                          maxHeight: "600px",
+                        }}
+                      />
+                      <canvas
+                        ref={maskCanvasRef}
+                        className="absolute top-0 left-0 pointer-events-none"
+                        style={{
+                          width: `${originalBounds.width}px`,
+                          height: `${originalBounds.height}px`,
+                          maxWidth: "800px",
+                          maxHeight: "600px",
+                          display: "none",
+                        }}
+                      />
+                      <canvas
+                        ref={cursorCanvasRef}
+                        className="absolute top-0 left-0 pointer-events-none"
+                        style={{
+                          width: `${originalBounds.width}px`,
+                          height: `${originalBounds.height}px`,
+                          maxWidth: "800px",
+                          maxHeight: "600px",
+                          display: "none",
+                        }}
+                      />
+                    </>
+                  )}
                 </div>
 
                 {/* Resize Handles for Freestyle Mode */}
@@ -960,15 +1071,15 @@ export default function AdvancedImageEditor({
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
             <div className="flex">
               <button
-                onClick={() => setActiveFeature("fill")}
+                onClick={() => setActiveFeature("upscale")}
                 className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all border-b-2 ${
-                  activeFeature === "fill"
+                  activeFeature === "upscale"
                     ? "bg-blue-50 text-blue-600 border-blue-500"
                     : "bg-gray-50 text-gray-600 border-transparent hover:bg-gray-100"
                 }`}
               >
-                <Sparkles className="w-4 h-4" />
-                Generative Fill
+                <Zap className="w-4 h-4" />
+                AI Upscaler
               </button>
               <button
                 onClick={() => setActiveFeature("expand")}
@@ -984,107 +1095,76 @@ export default function AdvancedImageEditor({
             </div>
 
             <div className="p-6">
-              {activeFeature === "fill" ? (
+              {activeFeature === "upscale" ? (
                 <div className="space-y-6">
-                  {/* Brush Tools */}
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700">
-                        Select Tool
-                      </Label>
-                      <div className="grid grid-cols-2 gap-1 p-1 bg-gray-100 rounded-lg">
-                        <button
-                          onClick={() => setTool("brush")}
-                          className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
-                            tool === "brush"
-                              ? "bg-white text-gray-900 shadow-sm"
-                              : "text-gray-600 hover:text-gray-900"
-                          }`}
-                        >
-                          <Brush className="w-4 h-4" />
-                          Brush
-                        </button>
-                        <button
-                          onClick={() => setTool("eraser")}
-                          className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
-                            tool === "eraser"
-                              ? "bg-white text-gray-900 shadow-sm"
-                              : "text-gray-600 hover:text-gray-900"
-                          }`}
-                        >
-                          <Eraser className="w-4 h-4" />
-                          Eraser
-                        </button>
+                  {/* Upscaler Info */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <Zap className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <div>
+                        <h4 className="text-sm font-medium text-blue-900 mb-1">
+                          AI Image Upscaler
+                        </h4>
+                        <p className="text-xs text-blue-700 mb-3">
+                          Enhance your image quality with AI-powered upscaling. 
+                          Increase resolution while preserving details.
+                        </p>
                       </div>
                     </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="brush-size"
-                        className="text-sm font-medium"
-                      >
-                        Brush Size: {brushSize}px
-                      </Label>
-                      <Input
-                        id="brush-size"
-                        type="range"
-                        min="5"
-                        max="50"
-                        value={brushSize}
-                        onChange={(e) => setBrushSize(Number(e.target.value))}
-                        className="w-full"
-                      />
-                    </div>
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={clearMask}
-                      className="w-full"
-                    >
-                      Clear Selection
-                    </Button>
                   </div>
 
-                  {/* Fill Controls */}
-                  <div className="space-y-4 pt-4 border-t border-gray-100">
-                    <div className="space-y-2">
-                      <Label htmlFor="prompt" className="text-sm font-medium">
-                        Describe what to fill:
-                      </Label>
-                      <Textarea
-                        id="prompt"
-                        placeholder="e.g., a beautiful sunset sky, green grass, modern building..."
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        rows={3}
-                        className="resize-none"
-                      />
-                    </div>
-
-                    {isProcessing && (
+                  {/* Upscaler Controls */}
+                  <div className="space-y-4">
+                    {isUpscaling && (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Processing...</span>
-                          <span className="text-gray-600">{progress}%</span>
+                          <span className="text-gray-600">Upscaling...</span>
+                          <span className="text-gray-600">{upscaleProgress}%</span>
                         </div>
-                        <Progress value={progress} className="h-2" />
+                        <Progress value={upscaleProgress} className="h-2" />
                       </div>
                     )}
 
                     <Button
-                      onClick={processGenerativeFill}
-                      disabled={!prompt.trim() || isProcessing}
+                      onClick={processImageUpscale}
+                      disabled={isUpscaling}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium"
                     >
-                      <Sparkles className="w-4 h-4 mr-2" />
-                      {isProcessing ? "Processing..." : "Generate Fill"}
+                      <Zap className="w-4 h-4 mr-2" />
+                      {isUpscaling ? "Upscaling..." : "Upscale Image"}
                     </Button>
 
+                    {upscaledImage && (
+                      <div className="space-y-3 pt-4 border-t border-gray-100">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-gray-700">
+                            Before/After Comparison
+                          </Label>
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <p className="text-xs text-green-700">
+                              ✓ Upscaling completed! Drag anywhere on the image to compare before and after.
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <Button
+                          onClick={() => {
+                            setUpscaledImage(null);
+                            setSliderPosition(50);
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                        >
+                          Start Over
+                        </Button>
+                      </div>
+                    )}
+
                     <div className="text-xs text-gray-500 space-y-1">
-                      <p>1. Paint over the area you want to fill</p>
-                      <p>2. Describe what should appear there</p>
-                      <p>3. Click Generate Fill</p>
+                      <p>1. Click "Upscale Image" to enhance quality</p>
+                      <p>2. Wait for AI processing to complete</p>
+                      <p>3. Drag on the image to compare results</p>
                     </div>
                   </div>
                 </div>
@@ -1255,11 +1335,11 @@ export default function AdvancedImageEditor({
                 <span className="text-sm text-gray-600">Status:</span>
                 <Badge
                   variant={
-                    isProcessing || isExpanding ? "secondary" : "outline"
+                    isUpscaling || isExpanding ? "secondary" : "outline"
                   }
                 >
-                  {isProcessing
-                    ? "Filling..."
+                  {isUpscaling
+                    ? "Upscaling..."
                     : isExpanding
                     ? "Expanding..."
                     : "Ready"}
@@ -1270,24 +1350,24 @@ export default function AdvancedImageEditor({
                 <Badge
                   variant="outline"
                   className={`${
-                    activeFeature === "fill"
+                    activeFeature === "upscale"
                       ? "bg-blue-50 text-blue-600 border-blue-200"
                       : "bg-purple-50 text-purple-600 border-purple-200"
                   }`}
                 >
-                  {activeFeature === "fill"
-                    ? "Generative Fill"
+                  {activeFeature === "upscale"
+                    ? "AI Upscaler"
                     : "Expand Image"}
                 </Badge>
               </div>
-              {activeFeature === "fill" && (
+              {upscaledImage && activeFeature === "upscale" && (
                 <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Tool:</span>
+                  <span className="text-sm text-gray-600">Comparison:</span>
                   <Badge
                     variant="outline"
-                    className="bg-gray-50 text-gray-700 border-gray-200"
+                    className="bg-green-50 text-green-700 border-green-200"
                   >
-                    {tool === "brush" ? "Brush" : "Eraser"}
+                    {Math.round(100 - sliderPosition)}% Before
                   </Badge>
                 </div>
               )}

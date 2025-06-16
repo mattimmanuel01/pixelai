@@ -137,9 +137,32 @@ export default function PremiumUploader() {
   }
 
   const openAdvancedEditor = (image: ProcessedImage) => {
-    // Open the editor in a new tab with the image URL
-    const imageUrl = encodeURIComponent(image.originalUrl)
-    router.push(`/editor?image=${imageUrl}`)
+    // Convert the file to base64 and store it with both approaches
+    const reader = new FileReader()
+    reader.onload = () => {
+      const base64 = reader.result as string
+      const imageKey = `editor_image_${Date.now()}`
+      
+      if (typeof window !== 'undefined') {
+        // Store in both global variable (for immediate navigation) and localStorage (for refresh)
+        (window as any).editorImageFile = image.originalFile
+        
+        try {
+          localStorage.setItem(imageKey, base64)
+          console.log('Stored image in localStorage with key:', imageKey)
+        } catch (error) {
+          console.warn('Failed to store in localStorage:', error)
+        }
+        
+        // Navigate with both methods for reliability
+        router.push(`/editor?hasFile=true&imageKey=${imageKey}`)
+      }
+    }
+    reader.onerror = (error) => {
+      console.error('FileReader error:', error)
+      alert('Failed to process image. Please try again.')
+    }
+    reader.readAsDataURL(image.originalFile)
   }
 
   return (
