@@ -548,14 +548,26 @@ export default function AdvancedImageEditor({
   };
 
   const processImageExpansion = async () => {
-    if (!originalImage || !expandPrompt.trim()) return;
+    if (!originalImage || !expandPrompt.trim()) {
+      console.log("Early return - originalImage:", !!originalImage, "expandPrompt:", expandPrompt.trim());
+      return;
+    }
 
     setIsExpanding(true);
     setExpandProgress(0);
 
     try {
       const canvas = canvasRef.current;
-      if (!canvas) return;
+      if (!canvas) {
+        console.log("No canvas found");
+        return;
+      }
+
+      // Check canvas has content
+      if (canvas.width === 0 || canvas.height === 0) {
+        console.log("Canvas has no dimensions:", canvas.width, canvas.height);
+        return;
+      }
 
       // Convert canvas to base64
       const imageBase64 = canvas.toDataURL("image/png");
@@ -565,6 +577,18 @@ export default function AdvancedImageEditor({
       console.log("Image base64 length:", imageBase64.length);
       console.log("Expand prompt:", expandPrompt.trim());
       console.log("Aspect ratio:", aspectRatio);
+      console.log("Expansion mode:", expansionMode);
+      
+      // Validate we have data
+      if (!imageBase64 || imageBase64.length < 100) {
+        console.log("Invalid base64 data");
+        return;
+      }
+      
+      if (!aspectRatio) {
+        console.log("No aspect ratio set");
+        return;
+      }
 
       let requestBody;
       if (expansionMode === "preset") {
@@ -593,6 +617,9 @@ export default function AdvancedImageEditor({
       }
 
       console.log("Sending request body:", requestBody);
+      console.log("Request body keys:", Object.keys(requestBody));
+      console.log("Request body image_data length:", requestBody.image_data?.length);
+      console.log("Request body aspect_ratio:", requestBody.aspect_ratio);
 
       // Start the prediction
       const response = await fetch("/api/reframe-image", {
@@ -644,38 +671,36 @@ export default function AdvancedImageEditor({
         resultImg.onload = () => {
           const ctx = canvas.getContext("2d");
           if (ctx) {
-            if (expansionMode === "freestyle") {
-              // For freestyle mode, crop the result to custom bounds
-              canvas.width = canvasBounds.width;
-              canvas.height = canvasBounds.height;
-
-              // Calculate center crop from the expanded image
-              const imgAspect = resultImg.width / resultImg.height;
-              const canvasAspect = canvasBounds.width / canvasBounds.height;
-
-              let drawWidth, drawHeight, drawX, drawY;
-
-              if (imgAspect > canvasAspect) {
-                // Image is wider, fit height and crop width
-                drawHeight = canvasBounds.height;
-                drawWidth = drawHeight * imgAspect;
-                drawX = (canvasBounds.width - drawWidth) / 2;
-                drawY = 0;
-              } else {
-                // Image is taller, fit width and crop height
-                drawWidth = canvasBounds.width;
-                drawHeight = drawWidth / imgAspect;
-                drawX = 0;
-                drawY = (canvasBounds.height - drawHeight) / 2;
-              }
-
-              ctx.drawImage(resultImg, drawX, drawY, drawWidth, drawHeight);
-            } else {
-              // For preset mode, just resize canvas to fit the result
-              canvas.width = resultImg.width;
-              canvas.height = resultImg.height;
-              ctx.drawImage(resultImg, 0, 0);
-            }
+            // Always preserve the aspect ratio of the result image
+            // Update canvas to match the result dimensions
+            canvas.width = resultImg.width;
+            canvas.height = resultImg.height;
+            
+            // Draw the result image at full size
+            ctx.drawImage(resultImg, 0, 0);
+            
+            // Update the canvas bounds to reflect the new size
+            const containerWidth = 800;
+            const containerHeight = 600;
+            const ratio = Math.min(
+              containerWidth / resultImg.width,
+              containerHeight / resultImg.height
+            );
+            
+            const displayWidth = resultImg.width * ratio;
+            const displayHeight = resultImg.height * ratio;
+            
+            setCanvasBounds({
+              width: displayWidth,
+              height: displayHeight,
+            });
+            
+            setOriginalBounds({
+              width: displayWidth,
+              height: displayHeight,
+              x: 0,
+              y: 0,
+            });
           }
         };
         resultImg.src = prediction.output;
