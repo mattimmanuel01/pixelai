@@ -35,32 +35,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // First, upload the image to Supabase Storage
+    // Upload the image directly to Supabase Storage without making HTTP call
     console.log("Uploading image to Supabase Storage...");
-    const uploadResponse = await fetch(
-      `${"http://localhost:3000"}/api/upload-image`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          imageData: image_data,
-          filename: "temp-image.png",
-        }),
-      }
+    
+    // Import Supabase client
+    const { createClient } = await import("@supabase/supabase-js");
+    
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      console.error("Upload failed:", errorText);
+    // Convert base64 to buffer
+    const base64Data = image_data.replace(/^data:image\/\w+;base64,/, "");
+    const buffer = Buffer.from(base64Data, "base64");
+
+    // Generate unique filename with timestamp
+    const uniqueFilename = `${Date.now()}-temp-image.png`;
+    console.log("Uploading to Supabase with filename:", uniqueFilename);
+
+    // Upload to Supabase Storage
+    const { data, error } = await supabase.storage
+      .from("temp-images")
+      .upload(uniqueFilename, buffer, {
+        contentType: "image/png",
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (error) {
+      console.error("Supabase storage error:", error);
       return NextResponse.json(
-        { error: "Failed to upload image" },
+        { error: `Failed to upload image: ${error.message}` },
         { status: 500 }
       );
     }
 
-    const { publicUrl } = await uploadResponse.json();
+    console.log("Upload successful:", data);
+
+    // Get public URL
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("temp-images").getPublicUrl(data.path);
+    
     console.log("Image uploaded successfully:", publicUrl);
 
     // Get the latest version of the model first

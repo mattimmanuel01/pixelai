@@ -85,6 +85,14 @@ export default function AdvancedImageEditor({
     };
   }, [imageUrl]);
 
+  // Re-initialize canvas when switching between modes or when upscaled image changes
+  useEffect(() => {
+    if (activeFeature === "expand" && originalImage) {
+      // Always redraw the original image when switching to expand mode
+      initializeCanvas(originalImage);
+    }
+  }, [activeFeature, imageUrl]); // Use imageUrl instead of originalImage to avoid object reference issues
+
   const initializeCanvas = (img: HTMLImageElement) => {
     const canvas = canvasRef.current;
     const maskCanvas = maskCanvasRef.current;
@@ -609,7 +617,7 @@ export default function AdvancedImageEditor({
     }
 
     setIsExpanding(true);
-    setExpandProgress(0);
+    setExpandProgress(5); // Show initial progress
 
     try {
       const canvas = canvasRef.current;
@@ -676,6 +684,9 @@ export default function AdvancedImageEditor({
       console.log("Request body image_data length:", requestBody.image_data?.length);
       console.log("Request body aspect_ratio:", requestBody.aspect_ratio);
 
+      // Update progress before making API call
+      setExpandProgress(10);
+
       // Start the prediction
       const response = await fetch("/api/reframe-image", {
         method: "POST",
@@ -696,15 +707,16 @@ export default function AdvancedImageEditor({
         } catch {
           errorData = { error: responseText || "Unknown error" };
         }
-        throw new Error(
-          errorData.error ||
-            `HTTP ${response.status}: Failed to start image expansion`
-        );
+        const errorMessage = errorData.error || `HTTP ${response.status}: Failed to start image expansion`;
+        throw new Error(errorMessage);
       }
 
       const responseData = await response.json();
       console.log("Reframe success response:", responseData);
       const { predictionId } = responseData;
+
+      // Update progress after successful API call
+      setExpandProgress(20);
 
       // Poll for completion
       console.log("Starting polling for prediction:", predictionId);
@@ -762,7 +774,8 @@ export default function AdvancedImageEditor({
       }
     } catch (error) {
       console.error("Image expansion failed:", error);
-      alert("Failed to process image expansion. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      alert(`Failed to process image expansion: ${errorMessage}. Please check the console for more details.`);
     } finally {
       setIsExpanding(false);
       setTimeout(() => setExpandProgress(0), 2000);
@@ -1124,7 +1137,7 @@ export default function AdvancedImageEditor({
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-600">Upscaling...</span>
-                          <span className="text-gray-600">{upscaleProgress}%</span>
+                          <span className="text-gray-600">{Math.round(upscaleProgress)}%</span>
                         </div>
                         <Progress value={upscaleProgress} className="h-2" />
                       </div>
