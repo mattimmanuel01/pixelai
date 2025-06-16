@@ -102,17 +102,31 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 ## API Integration
 
+### Async Processing with Polling
+All Replicate API calls use polling to avoid Vercel's 15-second timeout:
+
+1. **Create Prediction**: APIs return `predictionId` instead of waiting
+2. **Poll Status**: Frontend polls `/api/poll-prediction?id=<predictionId>` every 2 seconds
+3. **Handle Completion**: Process result when status becomes 'succeeded'
+
 ### Generative Fill API (`/api/generative-fill/route.ts`)
 - **Model**: stability-ai/stable-diffusion-inpainting
 - **Parameters**: 25 steps, 7.5 guidance scale
 - **Input**: Base64 image + mask + text prompt
-- **Output**: Generated image URL from Replicate
+- **Output**: `predictionId` for polling
+- **Polling**: Max 2 minutes (120 attempts × 2 seconds)
 
 ### Image Expansion API (`/api/reframe-image/route.ts`)
 - **Model**: luma/reframe-image
 - **Parameters**: aspect_ratio, prompt
 - **Input**: Base64 image + aspect ratio + text prompt
-- **Output**: Expanded image URL from Replicate
+- **Output**: `predictionId` for polling
+- **Polling**: Max 2 minutes (120 attempts × 2 seconds)
+
+### Polling API (`/api/poll-prediction/route.ts`)
+- **Method**: GET with query parameter `id`
+- **Returns**: status, output, error, logs
+- **Statuses**: starting → processing → succeeded/failed/canceled
 
 ## UI Components
 

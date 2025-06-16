@@ -14,27 +14,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { image, aspect_ratio, prompt } = await request.json()
+    const { image_data, aspect_ratio, prompt } = await request.json()
 
-    if (!image || !aspect_ratio) {
+    if (!image_data || !aspect_ratio) {
       return NextResponse.json(
-        { error: 'Missing required fields: image and aspect_ratio' },
+        { error: 'Missing required fields: image_data and aspect_ratio' },
         { status: 400 }
       )
     }
 
-    const output = await replicate.run(
-      "luma/reframe-image:1b85b1c4d01e2c11f2d7b6a1c985bd8b6bb26bd8e4fd0d21a9c00f8a8ebd2a7d",
-      {
-        input: {
-          image: image,
-          aspect_ratio: aspect_ratio,
-          prompt: prompt || "high quality, professional, detailed"
-        }
-      }
-    )
+    // Get the latest version of the model first
+    const model = await replicate.models.get("luma", "reframe-image")
+    const latestVersion = model.latest_version.id
 
-    return NextResponse.json({ output })
+    // Create a prediction instead of waiting for completion
+    // Pass the base64 data directly as 'image' parameter instead of 'image_url'
+    const prediction = await replicate.predictions.create({
+      version: latestVersion,
+      input: {
+        image: image_data,  // Use 'image' for base64 data
+        aspect_ratio: aspect_ratio,
+        prompt: prompt || "high quality, professional, detailed"
+      }
+    })
+
+    return NextResponse.json({ 
+      predictionId: prediction.id,
+      status: prediction.status 
+    })
   } catch (error) {
     console.error('Image reframe error:', error)
     return NextResponse.json(
