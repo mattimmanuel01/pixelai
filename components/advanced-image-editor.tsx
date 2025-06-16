@@ -142,7 +142,7 @@ export default function AdvancedImageEditor({
   const startDrawing = useCallback(
     (e: React.MouseEvent) => {
       const canvas = maskCanvasRef.current;
-      if (!canvas) return;
+      if (!canvas || !canvas.isConnected) return;
 
       const rect = canvas.getBoundingClientRect();
       const x = (e.clientX - rect.left) * (canvas.width / rect.width);
@@ -182,7 +182,7 @@ export default function AdvancedImageEditor({
       if (!isDrawing || !lastPos) return;
 
       const canvas = maskCanvasRef.current;
-      if (!canvas) return;
+      if (!canvas || !canvas.isConnected) return;
 
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
@@ -771,12 +771,16 @@ export default function AdvancedImageEditor({
 
   const downloadImage = () => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !canvas.isConnected) return;
 
-    const link = document.createElement("a");
-    link.download = "edited-image.png";
-    link.href = canvas.toDataURL();
-    link.click();
+    try {
+      const link = document.createElement("a");
+      link.download = "edited-image.png";
+      link.href = canvas.toDataURL();
+      link.click();
+    } catch (error) {
+      console.error("Failed to download image:", error);
+    }
   };
 
   return (
