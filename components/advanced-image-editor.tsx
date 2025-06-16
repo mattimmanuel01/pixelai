@@ -14,7 +14,10 @@ import {
   Sparkles,
   ArrowLeft,
   Undo,
-  Redo
+  Redo,
+  Expand,
+  RectangleHorizontal,
+  Maximize2
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -33,6 +36,11 @@ export default function AdvancedImageEditor({ imageUrl }: AdvancedImageEditorPro
   const [prompt, setPrompt] = useState('')
   const [isProcessing, setIsProcessing] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [activeFeature, setActiveFeature] = useState<'fill' | 'expand'>('fill')
+  const [expandPrompt, setExpandPrompt] = useState('')
+  const [aspectRatio, setAspectRatio] = useState('16:9')
+  const [isExpanding, setIsExpanding] = useState(false)
+  const [expandProgress, setExpandProgress] = useState(0)
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const [showCursor, setShowCursor] = useState(false)
@@ -303,6 +311,68 @@ export default function AdvancedImageEditor({ imageUrl }: AdvancedImageEditorPro
     }
   }
 
+  const processImageExpansion = async () => {
+    if (!originalImage || !expandPrompt.trim()) return
+
+    setIsExpanding(true)
+    setExpandProgress(0)
+
+    try {
+      const canvas = canvasRef.current
+      if (!canvas) return
+
+      // Convert canvas to base64
+      const imageBase64 = canvas.toDataURL('image/png')
+
+      // Simulate progress
+      const progressInterval = setInterval(() => {
+        setExpandProgress(prev => prev < 90 ? prev + 10 : prev)
+      }, 500)
+
+      const response = await fetch('/api/reframe-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          image: imageBase64,
+          aspect_ratio: aspectRatio,
+          prompt: expandPrompt.trim()
+        }),
+      })
+
+      clearInterval(progressInterval)
+
+      if (!response.ok) {
+        throw new Error('Failed to process image expansion')
+      }
+
+      const data = await response.json()
+      
+      if (data.output) {
+        const resultImg = new Image()
+        resultImg.crossOrigin = 'anonymous'
+        resultImg.onload = () => {
+          const ctx = canvas.getContext('2d')
+          if (ctx) {
+            // Clear and resize canvas for expanded image
+            canvas.width = resultImg.width
+            canvas.height = resultImg.height
+            ctx.drawImage(resultImg, 0, 0)
+            setExpandProgress(100)
+          }
+        }
+        resultImg.src = data.output
+      }
+    } catch (error) {
+      console.error('Image expansion failed:', error)
+      alert('Failed to process image expansion. Please try again.')
+    } finally {
+      setIsExpanding(false)
+      setTimeout(() => setExpandProgress(0), 2000)
+    }
+  }
+
   const downloadImage = () => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -370,31 +440,33 @@ export default function AdvancedImageEditor({ imageUrl }: AdvancedImageEditorPro
                 />
                 <canvas
                   ref={maskCanvasRef}
-                  className="absolute top-0 left-0 pointer-events-auto"
+                  className={`absolute top-0 left-0 ${activeFeature === 'fill' ? 'pointer-events-auto' : 'pointer-events-none'}`}
                   style={{ 
-                    cursor: 'none',
+                    cursor: activeFeature === 'fill' ? 'none' : 'default',
                     maxWidth: '800px', 
                     maxHeight: '600px',
-                    opacity: 0.4 // Make the red overlay more subtle
+                    opacity: activeFeature === 'fill' ? 0.4 : 0,
+                    display: activeFeature === 'fill' ? 'block' : 'none'
                   }}
-                  onMouseDown={startDrawing}
-                  onMouseUp={stopDrawing}
-                  onMouseMove={(e) => {
+                  onMouseDown={activeFeature === 'fill' ? startDrawing : undefined}
+                  onMouseUp={activeFeature === 'fill' ? stopDrawing : undefined}
+                  onMouseMove={activeFeature === 'fill' ? (e) => {
                     draw(e)
                     updateCursor(e)
-                  }}
-                  onMouseEnter={handleMouseEnter}
-                  onMouseLeave={() => {
+                  } : undefined}
+                  onMouseEnter={activeFeature === 'fill' ? handleMouseEnter : undefined}
+                  onMouseLeave={activeFeature === 'fill' ? () => {
                     stopDrawing()
                     handleMouseLeave()
-                  }}
+                  } : undefined}
                 />
                 <canvas
                   ref={cursorCanvasRef}
                   className="absolute top-0 left-0 pointer-events-none"
                   style={{ 
                     maxWidth: '800px', 
-                    maxHeight: '600px'
+                    maxHeight: '600px',
+                    display: activeFeature === 'fill' ? 'block' : 'none'
                   }}
                 />
               </div>
@@ -402,113 +474,203 @@ export default function AdvancedImageEditor({ imageUrl }: AdvancedImageEditorPro
           </div>
         </div>
 
-        {/* Tools Panel */}
+        {/* AI Features Panel */}
         <div className="space-y-6">
-          {/* Tools */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Tools</h3>
-            
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-gray-700">Select Tool</Label>
-                <div className="grid grid-cols-2 gap-1 p-1 bg-gray-100 rounded-lg">
-                  <button
-                    onClick={() => setTool('brush')}
-                    className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
-                      tool === 'brush' 
-                        ? 'bg-white text-gray-900 shadow-sm' 
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <Brush className="w-4 h-4" />
-                    Brush
-                  </button>
-                  <button
-                    onClick={() => setTool('eraser')}
-                    className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
-                      tool === 'eraser' 
-                        ? 'bg-white text-gray-900 shadow-sm' 
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    <Eraser className="w-4 h-4" />
-                    Eraser
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="brush-size" className="text-sm font-medium">
-                  Brush Size: {brushSize}px
-                </Label>
-                <Input
-                  id="brush-size"
-                  type="range"
-                  min="5"
-                  max="50"
-                  value={brushSize}
-                  onChange={(e) => setBrushSize(Number(e.target.value))}
-                  className="w-full"
-                />
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={clearMask}
-                className="w-full"
+          {/* Feature Tabs */}
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="flex">
+              <button
+                onClick={() => setActiveFeature('fill')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all border-b-2 ${
+                  activeFeature === 'fill'
+                    ? 'bg-blue-50 text-blue-600 border-blue-500'
+                    : 'bg-gray-50 text-gray-600 border-transparent hover:bg-gray-100'
+                }`}
               >
-                Clear Selection
-              </Button>
+                <Sparkles className="w-4 h-4" />
+                Generative Fill
+              </button>
+              <button
+                onClick={() => setActiveFeature('expand')}
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 text-sm font-medium transition-all border-b-2 ${
+                  activeFeature === 'expand'
+                    ? 'bg-purple-50 text-purple-600 border-purple-500'
+                    : 'bg-gray-50 text-gray-600 border-transparent hover:bg-gray-100'
+                }`}
+              >
+                <Expand className="w-4 h-4" />
+                Expand Image
+              </button>
             </div>
-          </div>
 
-          {/* Generative Fill */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Sparkles className="w-5 h-5 text-blue-600" />
-              <h3 className="text-lg font-semibold text-gray-900">Generative Fill</h3>
-            </div>
-            
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="prompt" className="text-sm font-medium">
-                  Describe what to fill:
-                </Label>
-                <Textarea
-                  id="prompt"
-                  placeholder="e.g., a beautiful sunset sky, green grass, modern building..."
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  rows={3}
-                  className="resize-none"
-                />
-              </div>
+            <div className="p-6">
+              {activeFeature === 'fill' ? (
+                <div className="space-y-6">
+                  {/* Brush Tools */}
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">Select Tool</Label>
+                      <div className="grid grid-cols-2 gap-1 p-1 bg-gray-100 rounded-lg">
+                        <button
+                          onClick={() => setTool('brush')}
+                          className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                            tool === 'brush' 
+                              ? 'bg-white text-gray-900 shadow-sm' 
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <Brush className="w-4 h-4" />
+                          Brush
+                        </button>
+                        <button
+                          onClick={() => setTool('eraser')}
+                          className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                            tool === 'eraser' 
+                              ? 'bg-white text-gray-900 shadow-sm' 
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <Eraser className="w-4 h-4" />
+                          Eraser
+                        </button>
+                      </div>
+                    </div>
 
-              {isProcessing && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-gray-600">Processing...</span>
-                    <span className="text-gray-600">{progress}%</span>
+                    <div className="space-y-2">
+                      <Label htmlFor="brush-size" className="text-sm font-medium">
+                        Brush Size: {brushSize}px
+                      </Label>
+                      <Input
+                        id="brush-size"
+                        type="range"
+                        min="5"
+                        max="50"
+                        value={brushSize}
+                        onChange={(e) => setBrushSize(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={clearMask}
+                      className="w-full"
+                    >
+                      Clear Selection
+                    </Button>
                   </div>
-                  <Progress value={progress} className="h-2" />
+
+                  {/* Fill Controls */}
+                  <div className="space-y-4 pt-4 border-t border-gray-100">
+                    <div className="space-y-2">
+                      <Label htmlFor="prompt" className="text-sm font-medium">
+                        Describe what to fill:
+                      </Label>
+                      <Textarea
+                        id="prompt"
+                        placeholder="e.g., a beautiful sunset sky, green grass, modern building..."
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
+                        rows={3}
+                        className="resize-none"
+                      />
+                    </div>
+
+                    {isProcessing && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Processing...</span>
+                          <span className="text-gray-600">{progress}%</span>
+                        </div>
+                        <Progress value={progress} className="h-2" />
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={processGenerativeFill}
+                      disabled={!prompt.trim() || isProcessing}
+                      className="w-full bg-blue-600 hover:bg-blue-700"
+                    >
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      {isProcessing ? 'Processing...' : 'Generate Fill'}
+                    </Button>
+
+                    <div className="text-xs text-gray-500 space-y-1">
+                      <p>1. Paint over the area you want to fill</p>
+                      <p>2. Describe what should appear there</p>
+                      <p>3. Click Generate Fill</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Aspect Ratio Selection */}
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-medium text-gray-700">Aspect Ratio</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {['16:9', '4:3', '1:1', '9:16'].map((ratio) => (
+                          <button
+                            key={ratio}
+                            onClick={() => setAspectRatio(ratio)}
+                            className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all border ${
+                              aspectRatio === ratio
+                                ? 'bg-purple-50 text-purple-600 border-purple-200'
+                                : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                            }`}
+                          >
+                            <RectangleHorizontal className="w-4 h-4" />
+                            {ratio}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expand Controls */}
+                  <div className="space-y-4 pt-4 border-t border-gray-100">
+                    <div className="space-y-2">
+                      <Label htmlFor="expand-prompt" className="text-sm font-medium">
+                        Describe the expanded area:
+                      </Label>
+                      <Textarea
+                        id="expand-prompt"
+                        placeholder="e.g., natural landscape, city skyline, ocean view..."
+                        value={expandPrompt}
+                        onChange={(e) => setExpandPrompt(e.target.value)}
+                        rows={3}
+                        className="resize-none"
+                      />
+                    </div>
+
+                    {isExpanding && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Expanding...</span>
+                          <span className="text-gray-600">{expandProgress}%</span>
+                        </div>
+                        <Progress value={expandProgress} className="h-2" />
+                      </div>
+                    )}
+
+                    <Button
+                      onClick={processImageExpansion}
+                      disabled={!expandPrompt.trim() || isExpanding}
+                      className="w-full bg-purple-600 hover:bg-purple-700"
+                    >
+                      <Expand className="w-4 h-4 mr-2" />
+                      {isExpanding ? 'Expanding...' : 'Expand Image'}
+                    </Button>
+
+                    <div className="text-xs text-gray-500 space-y-1">
+                      <p>1. Select desired aspect ratio</p>
+                      <p>2. Describe what should fill the new space</p>
+                      <p>3. Click Expand Image</p>
+                    </div>
+                  </div>
                 </div>
               )}
-
-              <Button
-                onClick={processGenerativeFill}
-                disabled={!prompt.trim() || isProcessing}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-              >
-                <Sparkles className="w-4 h-4 mr-2" />
-                {isProcessing ? 'Processing...' : 'Generate Fill'}
-              </Button>
-
-              <div className="text-xs text-gray-500 space-y-1">
-                <p>1. Paint over the area you want to fill</p>
-                <p>2. Describe what should appear there</p>
-                <p>3. Click Generate Fill</p>
-              </div>
             </div>
           </div>
 
@@ -519,19 +681,34 @@ export default function AdvancedImageEditor({ imageUrl }: AdvancedImageEditorPro
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Status:</span>
-                <Badge variant={isProcessing ? "secondary" : "outline"}>
-                  {isProcessing ? "Processing" : "Ready"}
+                <Badge variant={isProcessing || isExpanding ? "secondary" : "outline"}>
+                  {isProcessing ? "Filling..." : isExpanding ? "Expanding..." : "Ready"}
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Tool:</span>
+                <span className="text-sm text-gray-600">Active Feature:</span>
                 <Badge 
                   variant="outline"
-                  className="bg-gray-50 text-gray-700 border-gray-200"
+                  className={`${
+                    activeFeature === 'fill' 
+                      ? 'bg-blue-50 text-blue-600 border-blue-200'
+                      : 'bg-purple-50 text-purple-600 border-purple-200'
+                  }`}
                 >
-                  {tool === 'brush' ? 'Brush' : 'Eraser'}
+                  {activeFeature === 'fill' ? 'Generative Fill' : 'Expand Image'}
                 </Badge>
               </div>
+              {activeFeature === 'fill' && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Tool:</span>
+                  <Badge 
+                    variant="outline"
+                    className="bg-gray-50 text-gray-700 border-gray-200"
+                  >
+                    {tool === 'brush' ? 'Brush' : 'Eraser'}
+                  </Badge>
+                </div>
+              )}
             </div>
           </div>
         </div>

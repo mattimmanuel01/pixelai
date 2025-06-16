@@ -53,10 +53,19 @@ npm run lint         # ESLint code checking
 
 #### Generative Fill Flow
 1. Navigate to `/editor?image=<url>` (`advanced-image-editor.tsx`)
-2. Paint mask with brush/eraser tools on HTML5 canvas
-3. Enter text prompt for desired content
-4. Submit to `/api/generative-fill` → Replicate API
-5. Result overlays on original image
+2. Select "Generative Fill" tab
+3. Paint mask with brush/eraser tools on HTML5 canvas
+4. Enter text prompt for desired content
+5. Submit to `/api/generative-fill` → Replicate API
+6. Result overlays on original image
+
+#### Image Expansion Flow
+1. Navigate to `/editor?image=<url>` (`advanced-image-editor.tsx`)
+2. Select "Expand Image" tab
+3. Choose aspect ratio (16:9, 4:3, 1:1, 9:16)
+4. Enter text prompt for expanded area content
+5. Submit to `/api/reframe-image` → Luma Reframe API
+6. Canvas resizes to show expanded image
 
 ## Environment Configuration
 
@@ -99,6 +108,12 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 - **Input**: Base64 image + mask + text prompt
 - **Output**: Generated image URL from Replicate
 
+### Image Expansion API (`/api/reframe-image/route.ts`)
+- **Model**: luma/reframe-image
+- **Parameters**: aspect_ratio, prompt
+- **Input**: Base64 image + aspect ratio + text prompt
+- **Output**: Expanded image URL from Replicate
+
 ## UI Components
 
 ### Shadcn/UI Setup
@@ -116,6 +131,8 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 - ✅ Background removal working
 - ✅ Generative fill working  
 - ✅ Canvas editor with proper masking
+- ✅ Image expansion/reframing working
+- ✅ Tabbed interface for Fill vs Expand
 - ❌ Supabase auth not integrated
 - ❌ Payment system not implemented
 - ❌ User dashboard pending
