@@ -163,6 +163,11 @@ export const updateUserQuota = async (userId: string, quotaType: 'upscale' | 'ex
 
 export const getUserImages = async () => {
   try {
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined') {
+      return { data: null, error: { message: 'Server-side execution not supported' } }
+    }
+
     // Get the current session token
     const { data: { session } } = await supabase.auth.getSession()
     
@@ -192,6 +197,11 @@ export const getUserImages = async () => {
 
 export const saveUserImage = async (imageData: Omit<UserImage, 'id' | 'created_at' | 'user_id'>) => {
   try {
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined') {
+      return { data: null, error: { message: 'Server-side execution not supported' } }
+    }
+
     // Get the current session token
     const { data: { session } } = await supabase.auth.getSession()
     
@@ -222,6 +232,11 @@ export const saveUserImage = async (imageData: Omit<UserImage, 'id' | 'created_a
 
 export const deleteUserImage = async (imageId: string) => {
   try {
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined') {
+      return { data: null, error: { message: 'Server-side execution not supported' } }
+    }
+
     // Get the current session token
     const { data: { session } } = await supabase.auth.getSession()
     

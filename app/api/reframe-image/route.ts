@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Increment usage quota
+    // Increment usage quota - using direct database call since this is server-side
     await supabase
       .from('users')
       .update({ expand_used: userProfile.expand_used + 1 })

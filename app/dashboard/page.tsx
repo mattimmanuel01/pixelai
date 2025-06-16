@@ -147,21 +147,29 @@ export default function DashboardPage() {
     )
 
     try {
-      // Start progress animation immediately
+      // Start progress animation immediately with a more realistic flow
       const progressInterval = setInterval(() => {
         setProcessingImages(prev => 
-          prev.map(img => 
-            img.id === imageId && img.progress < 70
-              ? { ...img, progress: img.progress + 5 }
+          prev.map(img => {
+            if (img.id !== imageId) return img
+            
+            // Slow down progress as it gets higher to feel more natural
+            let increment = 5
+            if (img.progress > 50) increment = 3
+            if (img.progress > 70) increment = 1
+            
+            return img.progress < 85
+              ? { ...img, progress: Math.min(img.progress + increment, 85) }
               : img
-          )
+          })
         )
-      }, 200)
+      }, 300)
 
       // Remove background
       const blob = await removeBackground(image.file)
       
-      // Update progress to 90%
+      // Clear the interval and update progress to 90%
+      clearInterval(progressInterval)
       setProcessingImages(prev => 
         prev.map(img => 
           img.id === imageId 
@@ -576,8 +584,11 @@ export default function DashboardPage() {
                     {image.status === 'processing' && (
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-t-lg">
                         <div className="text-center">
-                          <Loader2 className="w-8 h-8 text-white animate-spin mx-auto mb-2" />
+                          <div className="relative">
+                            <Loader2 className="w-8 h-8 text-white animate-spin mx-auto mb-2" />
+                          </div>
                           <div className="text-white text-sm font-medium">{image.progress}%</div>
+                          <div className="text-white text-xs opacity-75 mt-1">Processing...</div>
                         </div>
                       </div>
                     )}

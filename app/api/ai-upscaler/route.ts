@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
 
     console.log("Upscaler prediction created:", prediction.id);
 
-    // Increment usage quota
+    // Increment usage quota - using direct database call since this is server-side
     await supabase
       .from('users')
       .update({ upscale_used: userProfile.upscale_used + 1 })
