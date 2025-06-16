@@ -17,7 +17,9 @@ import {
   Redo,
   Expand,
   RectangleHorizontal,
-  Maximize2
+  Maximize2,
+  Move,
+  RotateCcw
 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 
@@ -41,6 +43,11 @@ export default function AdvancedImageEditor({ imageUrl }: AdvancedImageEditorPro
   const [aspectRatio, setAspectRatio] = useState('16:9')
   const [isExpanding, setIsExpanding] = useState(false)
   const [expandProgress, setExpandProgress] = useState(0)
+  const [expansionMode, setExpansionMode] = useState<'preset' | 'freestyle'>('preset')
+  const [canvasBounds, setCanvasBounds] = useState({ width: 800, height: 600 })
+  const [originalBounds, setOriginalBounds] = useState({ width: 0, height: 0, x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragHandle, setDragHandle] = useState<string | null>(null)
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const [showCursor, setShowCursor] = useState(false)
@@ -72,15 +79,31 @@ export default function AdvancedImageEditor({ imageUrl }: AdvancedImageEditorPro
     const containerHeight = 600
     const ratio = Math.min(containerWidth / img.width, containerHeight / img.height)
     
-    canvas.width = img.width * ratio
-    canvas.height = img.height * ratio
-    maskCanvas.width = canvas.width
-    maskCanvas.height = canvas.height
-    cursorCanvas.width = canvas.width
-    cursorCanvas.height = canvas.height
+    const displayWidth = img.width * ratio
+    const displayHeight = img.height * ratio
+    
+    canvas.width = displayWidth
+    canvas.height = displayHeight
+    maskCanvas.width = displayWidth
+    maskCanvas.height = displayHeight
+    cursorCanvas.width = displayWidth
+    cursorCanvas.height = displayHeight
+
+    // Store original image bounds for expansion
+    setOriginalBounds({
+      width: displayWidth,
+      height: displayHeight,
+      x: 0,
+      y: 0
+    })
+    
+    setCanvasBounds({
+      width: displayWidth,
+      height: displayHeight
+    })
 
     // Draw original image
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+    ctx.drawImage(img, 0, 0, displayWidth, displayHeight)
 
     // Initialize mask canvas with transparent background
     maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height)
@@ -311,6 +334,73 @@ export default function AdvancedImageEditor({ imageUrl }: AdvancedImageEditorPro
     }
   }
 
+  const handleResizeDrag = useCallback((e: React.MouseEvent, handle: string) => {
+    e.preventDefault()
+    setIsDragging(true)
+    setDragHandle(handle)
+    
+    const startX = e.clientX
+    const startY = e.clientY
+    const startBounds = { ...canvasBounds }
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX
+      const deltaY = moveEvent.clientY - startY
+      
+      let newBounds = { ...startBounds }
+      
+      switch (handle) {
+        case 'se': // Bottom-right
+          newBounds.width = Math.max(originalBounds.width, startBounds.width + deltaX)
+          newBounds.height = Math.max(originalBounds.height, startBounds.height + deltaY)
+          break
+        case 'sw': // Bottom-left
+          newBounds.width = Math.max(originalBounds.width, startBounds.width - deltaX)
+          newBounds.height = Math.max(originalBounds.height, startBounds.height + deltaY)
+          break
+        case 'ne': // Top-right
+          newBounds.width = Math.max(originalBounds.width, startBounds.width + deltaX)
+          newBounds.height = Math.max(originalBounds.height, startBounds.height - deltaY)
+          break
+        case 'nw': // Top-left
+          newBounds.width = Math.max(originalBounds.width, startBounds.width - deltaX)
+          newBounds.height = Math.max(originalBounds.height, startBounds.height - deltaY)
+          break
+        case 'e': // Right
+          newBounds.width = Math.max(originalBounds.width, startBounds.width + deltaX)
+          break
+        case 'w': // Left
+          newBounds.width = Math.max(originalBounds.width, startBounds.width - deltaX)
+          break
+        case 's': // Bottom
+          newBounds.height = Math.max(originalBounds.height, startBounds.height + deltaY)
+          break
+        case 'n': // Top
+          newBounds.height = Math.max(originalBounds.height, startBounds.height - deltaY)
+          break
+      }
+      
+      setCanvasBounds(newBounds)
+    }
+    
+    const handleMouseUp = () => {
+      setIsDragging(false)
+      setDragHandle(null)
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+    
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [canvasBounds, originalBounds])
+
+  const resetCanvasSize = () => {
+    setCanvasBounds({
+      width: originalBounds.width,
+      height: originalBounds.height
+    })
+  }
+
   const processImageExpansion = async () => {
     if (!originalImage || !expandPrompt.trim()) return
 
@@ -329,16 +419,34 @@ export default function AdvancedImageEditor({ imageUrl }: AdvancedImageEditorPro
         setExpandProgress(prev => prev < 90 ? prev + 10 : prev)
       }, 500)
 
+      let requestBody
+      if (expansionMode === 'preset') {
+        requestBody = {
+          image: imageBase64,
+          aspect_ratio: aspectRatio,
+          prompt: expandPrompt.trim()
+        }
+      } else {
+        // For freestyle mode, calculate aspect ratio from canvas bounds
+        const ratio = canvasBounds.width / canvasBounds.height
+        let closestRatio = '1:1'
+        if (ratio > 1.7) closestRatio = '16:9'
+        else if (ratio > 1.2) closestRatio = '4:3'
+        else if (ratio < 0.8) closestRatio = '9:16'
+        
+        requestBody = {
+          image: imageBase64,
+          aspect_ratio: closestRatio,
+          prompt: expandPrompt.trim()
+        }
+      }
+
       const response = await fetch('/api/reframe-image', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          image: imageBase64,
-          aspect_ratio: aspectRatio,
-          prompt: expandPrompt.trim()
-        }),
+        body: JSON.stringify(requestBody),
       })
 
       clearInterval(progressInterval)
@@ -356,9 +464,9 @@ export default function AdvancedImageEditor({ imageUrl }: AdvancedImageEditorPro
           const ctx = canvas.getContext('2d')
           if (ctx) {
             // Clear and resize canvas for expanded image
-            canvas.width = resultImg.width
-            canvas.height = resultImg.height
-            ctx.drawImage(resultImg, 0, 0)
+            canvas.width = canvasBounds.width
+            canvas.height = canvasBounds.height
+            ctx.drawImage(resultImg, 0, 0, canvasBounds.width, canvasBounds.height)
             setExpandProgress(100)
           }
         }
@@ -432,43 +540,148 @@ export default function AdvancedImageEditor({ imageUrl }: AdvancedImageEditorPro
             </div>
             
             <div className="flex-1 p-6 flex items-center justify-center bg-gray-50">
-              <div className="relative border-2 border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
-                <canvas
-                  ref={canvasRef}
-                  className="block max-w-full max-h-full"
-                  style={{ maxWidth: '800px', maxHeight: '600px' }}
-                />
-                <canvas
-                  ref={maskCanvasRef}
-                  className={`absolute top-0 left-0 ${activeFeature === 'fill' ? 'pointer-events-auto' : 'pointer-events-none'}`}
-                  style={{ 
-                    cursor: activeFeature === 'fill' ? 'none' : 'default',
-                    maxWidth: '800px', 
-                    maxHeight: '600px',
-                    opacity: activeFeature === 'fill' ? 0.4 : 0,
-                    display: activeFeature === 'fill' ? 'block' : 'none'
-                  }}
-                  onMouseDown={activeFeature === 'fill' ? startDrawing : undefined}
-                  onMouseUp={activeFeature === 'fill' ? stopDrawing : undefined}
-                  onMouseMove={activeFeature === 'fill' ? (e) => {
-                    draw(e)
-                    updateCursor(e)
-                  } : undefined}
-                  onMouseEnter={activeFeature === 'fill' ? handleMouseEnter : undefined}
-                  onMouseLeave={activeFeature === 'fill' ? () => {
-                    stopDrawing()
-                    handleMouseLeave()
-                  } : undefined}
-                />
-                <canvas
-                  ref={cursorCanvasRef}
-                  className="absolute top-0 left-0 pointer-events-none"
-                  style={{ 
-                    maxWidth: '800px', 
-                    maxHeight: '600px',
-                    display: activeFeature === 'fill' ? 'block' : 'none'
-                  }}
-                />
+              <div className="relative">
+                {/* Expansion Preview Overlay */}
+                {activeFeature === 'expand' && expansionMode === 'freestyle' && (
+                  <div 
+                    className="absolute border-2 border-dashed border-purple-400 bg-purple-50/20 rounded-lg pointer-events-none z-10"
+                    style={{
+                      width: `${canvasBounds.width}px`,
+                      height: `${canvasBounds.height}px`,
+                      top: '50%',
+                      left: '50%',
+                      transform: 'translate(-50%, -50%)'
+                    }}
+                  >
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="bg-purple-600 text-white px-3 py-1 rounded-full text-sm font-medium">
+                        {Math.round(canvasBounds.width)} × {Math.round(canvasBounds.height)}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Main Canvas Container */}
+                <div className="relative border-2 border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                  <canvas
+                    ref={canvasRef}
+                    className="block max-w-full max-h-full"
+                    style={{ 
+                      width: `${originalBounds.width}px`,
+                      height: `${originalBounds.height}px`,
+                      maxWidth: '800px', 
+                      maxHeight: '600px' 
+                    }}
+                  />
+                  <canvas
+                    ref={maskCanvasRef}
+                    className={`absolute top-0 left-0 ${activeFeature === 'fill' ? 'pointer-events-auto' : 'pointer-events-none'}`}
+                    style={{ 
+                      cursor: activeFeature === 'fill' ? 'none' : 'default',
+                      width: `${originalBounds.width}px`,
+                      height: `${originalBounds.height}px`,
+                      maxWidth: '800px', 
+                      maxHeight: '600px',
+                      opacity: activeFeature === 'fill' ? 0.4 : 0,
+                      display: activeFeature === 'fill' ? 'block' : 'none'
+                    }}
+                    onMouseDown={activeFeature === 'fill' ? startDrawing : undefined}
+                    onMouseUp={activeFeature === 'fill' ? stopDrawing : undefined}
+                    onMouseMove={activeFeature === 'fill' ? (e) => {
+                      draw(e)
+                      updateCursor(e)
+                    } : undefined}
+                    onMouseEnter={activeFeature === 'fill' ? handleMouseEnter : undefined}
+                    onMouseLeave={activeFeature === 'fill' ? () => {
+                      stopDrawing()
+                      handleMouseLeave()
+                    } : undefined}
+                  />
+                  <canvas
+                    ref={cursorCanvasRef}
+                    className="absolute top-0 left-0 pointer-events-none"
+                    style={{ 
+                      width: `${originalBounds.width}px`,
+                      height: `${originalBounds.height}px`,
+                      maxWidth: '800px', 
+                      maxHeight: '600px',
+                      display: activeFeature === 'fill' ? 'block' : 'none'
+                    }}
+                  />
+                </div>
+
+                {/* Resize Handles for Freestyle Mode */}
+                {activeFeature === 'expand' && expansionMode === 'freestyle' && (
+                  <>
+                    {/* Corner Handles */}
+                    <div 
+                      className="absolute w-3 h-3 bg-purple-600 border border-white rounded-sm cursor-nw-resize z-20 hover:bg-purple-700"
+                      style={{
+                        top: `calc(50% - ${canvasBounds.height/2}px - 6px)`,
+                        left: `calc(50% - ${canvasBounds.width/2}px - 6px)`
+                      }}
+                      onMouseDown={(e) => handleResizeDrag(e, 'nw')}
+                    />
+                    <div 
+                      className="absolute w-3 h-3 bg-purple-600 border border-white rounded-sm cursor-ne-resize z-20 hover:bg-purple-700"
+                      style={{
+                        top: `calc(50% - ${canvasBounds.height/2}px - 6px)`,
+                        right: `calc(50% - ${canvasBounds.width/2}px - 6px)`
+                      }}
+                      onMouseDown={(e) => handleResizeDrag(e, 'ne')}
+                    />
+                    <div 
+                      className="absolute w-3 h-3 bg-purple-600 border border-white rounded-sm cursor-sw-resize z-20 hover:bg-purple-700"
+                      style={{
+                        bottom: `calc(50% - ${canvasBounds.height/2}px - 6px)`,
+                        left: `calc(50% - ${canvasBounds.width/2}px - 6px)`
+                      }}
+                      onMouseDown={(e) => handleResizeDrag(e, 'sw')}
+                    />
+                    <div 
+                      className="absolute w-3 h-3 bg-purple-600 border border-white rounded-sm cursor-se-resize z-20 hover:bg-purple-700"
+                      style={{
+                        bottom: `calc(50% - ${canvasBounds.height/2}px - 6px)`,
+                        right: `calc(50% - ${canvasBounds.width/2}px - 6px)`
+                      }}
+                      onMouseDown={(e) => handleResizeDrag(e, 'se')}
+                    />
+                    
+                    {/* Edge Handles */}
+                    <div 
+                      className="absolute w-3 h-6 bg-purple-600 border border-white rounded-sm cursor-ew-resize z-20 hover:bg-purple-700"
+                      style={{
+                        top: `calc(50% - 12px)`,
+                        left: `calc(50% - ${canvasBounds.width/2}px - 6px)`
+                      }}
+                      onMouseDown={(e) => handleResizeDrag(e, 'w')}
+                    />
+                    <div 
+                      className="absolute w-3 h-6 bg-purple-600 border border-white rounded-sm cursor-ew-resize z-20 hover:bg-purple-700"
+                      style={{
+                        top: `calc(50% - 12px)`,
+                        right: `calc(50% - ${canvasBounds.width/2}px - 6px)`
+                      }}
+                      onMouseDown={(e) => handleResizeDrag(e, 'e')}
+                    />
+                    <div 
+                      className="absolute w-6 h-3 bg-purple-600 border border-white rounded-sm cursor-ns-resize z-20 hover:bg-purple-700"
+                      style={{
+                        top: `calc(50% - ${canvasBounds.height/2}px - 6px)`,
+                        left: `calc(50% - 12px)`
+                      }}
+                      onMouseDown={(e) => handleResizeDrag(e, 'n')}
+                    />
+                    <div 
+                      className="absolute w-6 h-3 bg-purple-600 border border-white rounded-sm cursor-ns-resize z-20 hover:bg-purple-700"
+                      style={{
+                        bottom: `calc(50% - ${canvasBounds.height/2}px - 6px)`,
+                        left: `calc(50% - 12px)`
+                      }}
+                      onMouseDown={(e) => handleResizeDrag(e, 's')}
+                    />
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -590,7 +803,7 @@ export default function AdvancedImageEditor({ imageUrl }: AdvancedImageEditorPro
                     <Button
                       onClick={processGenerativeFill}
                       disabled={!prompt.trim() || isProcessing}
-                      className="w-full bg-blue-600 hover:bg-blue-700"
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium"
                     >
                       <Sparkles className="w-4 h-4 mr-2" />
                       {isProcessing ? 'Processing...' : 'Generate Fill'}
@@ -605,28 +818,90 @@ export default function AdvancedImageEditor({ imageUrl }: AdvancedImageEditorPro
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {/* Aspect Ratio Selection */}
+                  {/* Expansion Mode Toggle */}
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label className="text-sm font-medium text-gray-700">Aspect Ratio</Label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {['16:9', '4:3', '1:1', '9:16'].map((ratio) => (
-                          <button
-                            key={ratio}
-                            onClick={() => setAspectRatio(ratio)}
-                            className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all border ${
-                              aspectRatio === ratio
-                                ? 'bg-purple-50 text-purple-600 border-purple-200'
-                                : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
-                            }`}
-                          >
-                            <RectangleHorizontal className="w-4 h-4" />
-                            {ratio}
-                          </button>
-                        ))}
+                      <Label className="text-sm font-medium text-gray-700">Expansion Mode</Label>
+                      <div className="grid grid-cols-2 gap-1 p-1 bg-gray-100 rounded-lg">
+                        <button
+                          onClick={() => setExpansionMode('preset')}
+                          className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                            expansionMode === 'preset' 
+                              ? 'bg-white text-gray-900 shadow-sm' 
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <RectangleHorizontal className="w-4 h-4" />
+                          Preset Ratios
+                        </button>
+                        <button
+                          onClick={() => setExpansionMode('freestyle')}
+                          className={`flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                            expansionMode === 'freestyle' 
+                              ? 'bg-white text-gray-900 shadow-sm' 
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <Move className="w-4 h-4" />
+                          Freestyle
+                        </button>
                       </div>
                     </div>
                   </div>
+
+                  {/* Aspect Ratio Selection - Only show for preset mode */}
+                  {expansionMode === 'preset' && (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label className="text-sm font-medium text-gray-700">Aspect Ratio</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {['16:9', '4:3', '1:1', '9:16'].map((ratio) => (
+                            <button
+                              key={ratio}
+                              onClick={() => setAspectRatio(ratio)}
+                              className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all border ${
+                                aspectRatio === ratio
+                                  ? 'bg-purple-50 text-purple-600 border-purple-200'
+                                  : 'bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100'
+                              }`}
+                            >
+                              <RectangleHorizontal className="w-4 h-4" />
+                              {ratio}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Freestyle Controls */}
+                  {expansionMode === 'freestyle' && (
+                    <div className="space-y-4">
+                      <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                        <div className="flex items-start gap-3">
+                          <Move className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                          <div>
+                            <h4 className="text-sm font-medium text-purple-900 mb-1">Freestyle Expansion</h4>
+                            <p className="text-xs text-purple-700 mb-3">
+                              Drag the purple handles around the image to set custom expansion bounds.
+                            </p>
+                            <div className="flex items-center gap-2 text-xs text-purple-600">
+                              <span>Current size: {Math.round(canvasBounds.width)} × {Math.round(canvasBounds.height)}</span>
+                              <Button
+                                onClick={resetCanvasSize}
+                                variant="outline"
+                                size="sm"
+                                className="h-6 px-2 text-xs border-purple-200 text-purple-600 hover:bg-purple-100"
+                              >
+                                <RotateCcw className="w-3 h-3 mr-1" />
+                                Reset
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Expand Controls */}
                   <div className="space-y-4 pt-4 border-t border-gray-100">
@@ -657,16 +932,26 @@ export default function AdvancedImageEditor({ imageUrl }: AdvancedImageEditorPro
                     <Button
                       onClick={processImageExpansion}
                       disabled={!expandPrompt.trim() || isExpanding}
-                      className="w-full bg-purple-600 hover:bg-purple-700"
+                      className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium"
                     >
                       <Expand className="w-4 h-4 mr-2" />
                       {isExpanding ? 'Expanding...' : 'Expand Image'}
                     </Button>
 
                     <div className="text-xs text-gray-500 space-y-1">
-                      <p>1. Select desired aspect ratio</p>
-                      <p>2. Describe what should fill the new space</p>
-                      <p>3. Click Expand Image</p>
+                      {expansionMode === 'preset' ? (
+                        <>
+                          <p>1. Select desired aspect ratio</p>
+                          <p>2. Describe what should fill the new space</p>
+                          <p>3. Click Expand Image</p>
+                        </>
+                      ) : (
+                        <>
+                          <p>1. Drag handles to set custom bounds</p>
+                          <p>2. Describe what should fill the expanded area</p>
+                          <p>3. Click Expand Image</p>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
