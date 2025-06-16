@@ -559,6 +559,12 @@ export default function AdvancedImageEditor({
 
       // Convert canvas to base64
       const imageBase64 = canvas.toDataURL("image/png");
+      
+      // Debug logging
+      console.log("Canvas dimensions:", canvas.width, canvas.height);
+      console.log("Image base64 length:", imageBase64.length);
+      console.log("Expand prompt:", expandPrompt.trim());
+      console.log("Aspect ratio:", aspectRatio);
 
       let requestBody;
       if (expansionMode === "preset") {

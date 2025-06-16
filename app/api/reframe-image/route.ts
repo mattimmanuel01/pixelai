@@ -14,9 +14,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { image_data, aspect_ratio, prompt } = await request.json()
+    const requestBody = await request.json()
+    console.log('Received request body keys:', Object.keys(requestBody))
+    console.log('image_data present:', !!requestBody.image_data)
+    console.log('aspect_ratio present:', !!requestBody.aspect_ratio)
+    console.log('image_data length:', requestBody.image_data?.length || 0)
+    
+    const { image_data, aspect_ratio, prompt } = requestBody
 
     if (!image_data || !aspect_ratio) {
+      console.log('Missing fields - image_data:', !!image_data, 'aspect_ratio:', !!aspect_ratio)
       return NextResponse.json(
         { error: 'Missing required fields: image_data and aspect_ratio' },
         { status: 400 }
