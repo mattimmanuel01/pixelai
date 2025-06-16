@@ -17,10 +17,11 @@ import {
   ArrowRight,
   Zap,
   Image as ImageIcon,
-  Play
+  Play,
+  Edit
 } from 'lucide-react'
 import { removeBackground } from '@imgly/background-removal'
-import ImageEditor from './image-editor'
+import { useRouter } from 'next/navigation'
 
 interface ProcessedImage {
   id: string
@@ -33,9 +34,9 @@ interface ProcessedImage {
 }
 
 export default function PremiumUploader() {
+  const router = useRouter()
   const [images, setImages] = useState<ProcessedImage[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
-  const [editingImage, setEditingImage] = useState<ProcessedImage | null>(null)
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newImages: ProcessedImage[] = acceptedFiles.map(file => ({
@@ -136,35 +137,10 @@ export default function PremiumUploader() {
     })
   }
 
-  const openEditor = (image: ProcessedImage) => {
-    setEditingImage(image)
-  }
-
-  const closeEditor = () => {
-    setEditingImage(null)
-  }
-
-  const saveEditedImage = (editedImageUrl: string) => {
-    if (!editingImage) return
-
-    setImages(prev => 
-      prev.map(img => 
-        img.id === editingImage.id
-          ? { ...img, processedUrl: editedImageUrl, status: 'completed' }
-          : img
-      )
-    )
-    closeEditor()
-  }
-
-  if (editingImage) {
-    return (
-      <ImageEditor
-        imageUrl={editingImage.processedUrl || editingImage.originalUrl}
-        onSave={saveEditedImage}
-        onClose={closeEditor}
-      />
-    )
+  const openAdvancedEditor = (image: ProcessedImage) => {
+    // Open the editor in a new tab with the image URL
+    const imageUrl = encodeURIComponent(image.originalUrl)
+    router.push(`/editor?image=${imageUrl}`)
   }
 
   return (
@@ -321,14 +297,24 @@ export default function PremiumUploader() {
                       </Badge>
                       
                       {image.status === 'idle' && (
-                        <Button 
-                          onClick={() => removeBackgroundFromImage(image.id)}
-                          disabled={isProcessing}
-                          className="bg-blue-600 hover:bg-blue-700 text-white"
-                        >
-                          <Zap className="w-4 h-4 mr-2" />
-                          Process
-                        </Button>
+                        <>
+                          <Button 
+                            onClick={() => removeBackgroundFromImage(image.id)}
+                            disabled={isProcessing}
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                          >
+                            <Zap className="w-4 h-4 mr-2" />
+                            Remove BG
+                          </Button>
+                          <Button
+                            onClick={() => openAdvancedEditor(image)}
+                            variant="outline"
+                            className="border-2 hover:bg-gray-50"
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Advanced Edit
+                          </Button>
+                        </>
                       )}
                       
                       {image.status === 'completed' && image.processedUrl && (
@@ -345,14 +331,24 @@ export default function PremiumUploader() {
                       )}
                       
                       {image.status === 'error' && (
-                        <Button 
-                          onClick={() => removeBackgroundFromImage(image.id)}
-                          disabled={isProcessing}
-                          variant="outline"
-                          className="border-red-200 text-red-600 hover:bg-red-50"
-                        >
-                          Retry
-                        </Button>
+                        <>
+                          <Button 
+                            onClick={() => removeBackgroundFromImage(image.id)}
+                            disabled={isProcessing}
+                            variant="outline"
+                            className="border-red-200 text-red-600 hover:bg-red-50"
+                          >
+                            Retry
+                          </Button>
+                          <Button
+                            onClick={() => openAdvancedEditor(image)}
+                            disabled={isProcessing}
+                            className="bg-purple-600 hover:bg-purple-700 text-white"
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Advanced Edit
+                          </Button>
+                        </>
                       )}
 
                       <Button
@@ -376,13 +372,13 @@ export default function PremiumUploader() {
                         </div>
                         <div className="flex-1 h-px bg-gray-200"></div>
                         <Button
-                          onClick={() => openEditor(image)}
+                          onClick={() => openAdvancedEditor(image)}
                           variant="outline"
                           size="sm"
                           className="text-blue-600 hover:text-blue-700"
                         >
-                          <Wand2 className="w-4 h-4 mr-2" />
-                          Edit More
+                          <Edit className="w-4 h-4 mr-2" />
+                          Advanced Edit
                         </Button>
                       </div>
                       
