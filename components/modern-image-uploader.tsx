@@ -7,7 +7,6 @@ import { Progress } from '@/components/ui/progress'
 import { Badge } from '@/components/ui/badge'
 import { 
   Upload, 
-  Image as ImageIcon, 
   Download, 
   Trash2, 
   Sparkles, 

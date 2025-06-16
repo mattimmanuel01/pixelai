@@ -5,7 +5,6 @@ import {
   useRef,
   useCallback,
   useEffect,
-  useLayoutEffect,
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,11 +18,8 @@ import {
   Download,
   Sparkles,
   ArrowLeft,
-  Undo,
-  Redo,
   Expand,
   RectangleHorizontal,
-  Maximize2,
   Move,
   RotateCcw,
 } from "lucide-react";
@@ -61,12 +57,12 @@ export default function AdvancedImageEditor({
     x: 0,
     y: 0,
   });
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragHandle, setDragHandle] = useState<string | null>(null);
+  const [, setIsDragging] = useState(false);
+  const [, setDragHandle] = useState<string | null>(null);
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(
     null
   );
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [, setMousePos] = useState({ x: 0, y: 0 });
   const [showCursor, setShowCursor] = useState(false);
   const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null);
 
@@ -273,7 +269,7 @@ export default function AdvancedImageEditor({
   const pollPrediction = async (
     predictionId: string,
     onProgress?: (progress: number) => void
-  ): Promise<any> => {
+  ): Promise<unknown> => {
     return new Promise((resolve, reject) => {
       let attempts = 0;
       const maxAttempts = 120; // 2 minutes max (2 seconds * 120)
@@ -459,7 +455,7 @@ export default function AdvancedImageEditor({
         const deltaX = moveEvent.clientX - startX;
         const deltaY = moveEvent.clientY - startY;
 
-        let newBounds = { ...startBounds };
+        const newBounds = { ...startBounds };
 
         switch (handle) {
           case "se": // Bottom-right

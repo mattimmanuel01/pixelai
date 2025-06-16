@@ -10,7 +10,6 @@ import {
   Download, 
   Trash2, 
   Sparkles, 
-  Wand2,
   Check,
   AlertCircle,
   Loader2,
