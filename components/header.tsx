@@ -21,10 +21,10 @@ export default function Header() {
   }
 
   return (
-    <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
+    <header className="bg-white border-b border-gray-200 sticky top-0 z-50 relative">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2">
+        <Link href={user ? "/dashboard" : "/"} className="flex items-center gap-2">
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
@@ -33,16 +33,15 @@ export default function Header() {
 
         {/* Navigation */}
         <nav className="hidden md:flex items-center gap-8">
-          <Link href="/#features" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
-            Features
-          </Link>
-          <Link href="/#pricing" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
-            Pricing
-          </Link>
-          {user && (
-            <Link href="/dashboard" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
-              Dashboard
-            </Link>
+          {!user && (
+            <>
+              <Link href="/#features" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
+                Features
+              </Link>
+              <Link href="/#pricing" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
+                Pricing
+              </Link>
+            </>
           )}
         </nav>
 
@@ -58,24 +57,24 @@ export default function Header() {
                   </span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">{userProfile?.email}</span>
-                    <span className="text-xs text-gray-500 capitalize">
+              <DropdownMenuContent align="end" className="w-64 !bg-white !border !border-gray-200 !shadow-lg !z-[60]">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col space-y-1">
+                    <p className="text-sm font-medium leading-none">{userProfile?.email}</p>
+                    <p className="text-xs leading-none text-muted-foreground capitalize">
                       {userProfile?.subscription_tier || 'Free'} Plan
-                    </span>
+                    </p>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/dashboard" className="flex items-center gap-2 w-full">
+                  <Link href="/dashboard" className="flex items-center gap-2 w-full cursor-pointer">
                     <User className="w-4 h-4" />
                     Dashboard
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={handleSignOut} className="flex items-center gap-2 text-red-600">
+                <DropdownMenuItem onClick={handleSignOut} className="flex items-center gap-2 text-red-600 cursor-pointer">
                   <LogOut className="w-4 h-4" />
                   Sign out
                 </DropdownMenuItem>

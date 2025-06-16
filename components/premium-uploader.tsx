@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useDropzone } from 'react-dropzone'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -22,6 +22,7 @@ import {
 import { removeBackground } from '@imgly/background-removal'
 import { useRouter } from 'next/navigation'
 import Header from '@/components/header'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface ProcessedImage {
   id: string
@@ -35,8 +36,16 @@ interface ProcessedImage {
 
 export default function PremiumUploader() {
   const router = useRouter()
+  const { user, loading } = useAuth()
   const [images, setImages] = useState<ProcessedImage[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+
+  // Redirect logged-in users to dashboard
+  useEffect(() => {
+    if (!loading && user) {
+      router.push('/dashboard')
+    }
+  }, [user, loading, router])
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const newImages: ProcessedImage[] = acceptedFiles.map(file => ({

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Replicate from "replicate";
+import { createClient } from "@supabase/supabase-js";
 
 const replicate = new Replicate({
   auth: process.env.REPLICATE_API_TOKEN,
@@ -11,6 +12,59 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Replicate API token not configured" },
         { status: 500 }
+      );
+    }
+
+    // Verify authentication
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader) {
+      return NextResponse.json(
+        { error: "Authentication required" },
+        { status: 401 }
+      );
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: "Invalid authentication token" },
+        { status: 401 }
+      );
+    }
+
+    // Check user subscription and quota
+    const { data: userProfile, error: profileError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !userProfile) {
+      return NextResponse.json(
+        { error: "User profile not found" },
+        { status: 404 }
+      );
+    }
+
+    // Verify Pro subscription
+    if (userProfile.subscription_tier !== 'pro') {
+      return NextResponse.json(
+        { error: "Pro subscription required for AI upscaling" },
+        { status: 403 }
+      );
+    }
+
+    // Check quota
+    if (userProfile.upscale_used >= userProfile.upscale_quota) {
+      return NextResponse.json(
+        { error: "AI upscaling quota exceeded. Upgrade your plan for more credits." },
+        { status: 403 }
       );
     }
 
@@ -70,6 +124,12 @@ export async function POST(request: NextRequest) {
     });
 
     console.log("Upscaler prediction created:", prediction.id);
+
+    // Increment usage quota
+    await supabase
+      .from('users')
+      .update({ upscale_used: userProfile.upscale_used + 1 })
+      .eq('id', user.id);
 
     return NextResponse.json({
       predictionId: prediction.id,

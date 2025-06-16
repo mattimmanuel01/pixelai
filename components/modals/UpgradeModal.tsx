@@ -59,8 +59,10 @@ export default function UpgradeModal({ isOpen, onClose, feature, isAuthenticated
       // Redirect to signup with feature context
       router.push(`/signup?feature=${feature}`)
     } else {
-      // Redirect to pricing/upgrade flow
-      router.push('/#pricing')
+      // Show upgrade message - payment integration not implemented
+      alert('Upgrade functionality coming soon! Payment integration will be added in the next update.')
+      setLoading(false)
+      onClose()
     }
   }
 

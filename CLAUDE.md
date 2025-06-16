@@ -215,9 +215,36 @@ CREATE TABLE user_images (
 - ✅ User dashboard with quota tracking
 - ✅ Landing page with pricing tiers
 - ✅ Project history and management
+- ✅ Image persistence with Supabase storage
+- ✅ Fast dashboard loading with session persistence
+- ✅ Header dropdown menu with proper styling
+- ✅ Logo navigation without flicker
 - ❌ Payment system not implemented (Stripe ready)
 - ❌ Email confirmations and notifications
-- ❌ Image persistence after page refresh
+
+## Recent Improvements (2024)
+
+### Authentication & Session Management
+- **Fast Dashboard Loading**: Optimized session persistence with localStorage
+- **Reduced Timeouts**: Auth timeout 10s → 3s, retry delays 3s → 2s, image loading 15s → 8s
+- **Better Error Handling**: No more aggressive sign-outs on temporary network issues
+- **Graceful Retries**: Auto-refresh on profile loading failures
+
+### Image Persistence & Storage
+- **Supabase Storage Integration**: Images now stored in `temp-images` bucket instead of blob URLs
+- **Permanent URLs**: Images persist after page refresh with public Supabase URLs
+- **Dual Upload System**: Both original and processed images uploaded to storage
+- **Progress Indication**: Enhanced progress tracking during upload process
+
+### UI/UX Improvements
+- **Header Dropdown Fix**: Proper background, borders, and z-index for user menu
+- **Logo Navigation**: Conditional linking (dashboard for logged-in users, home for guests)
+- **No More Flicker**: Eliminated redirect loop when clicking logo while authenticated
+
+### Performance Optimizations
+- **Session Persistence**: Custom storage key (`pixelai-auth`) with explicit localStorage config
+- **Faster Fallbacks**: Reduced timeout values across authentication flow
+- **Better State Management**: Improved loading states and error boundaries
 
 ## Common Issues
 
@@ -229,6 +256,12 @@ CREATE TABLE user_images (
 - Set `cursor: 'none'` on mask canvas
 - Implement custom cursor with dashed circle outline
 - Handle mouse enter/leave for cursor visibility
+
+### Image Storage Best Practices
+- Always upload processed images to Supabase storage via `/api/upload-image`
+- Use `temp-images` bucket for all image operations
+- Name files with `processed-` or `original-` prefixes plus timestamps
+- Convert blobs to base64 before uploading to storage
 
 ### Environment Variables
 - Client variables need `NEXT_PUBLIC_` prefix

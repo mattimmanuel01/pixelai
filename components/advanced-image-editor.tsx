@@ -22,6 +22,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useAuth } from '@/contexts/AuthContext';
 import UpgradeModal from '@/components/modals/UpgradeModal';
+import { supabase } from '@/lib/supabase';
 
 interface AdvancedImageEditorProps {
   imageUrl: string;
@@ -32,6 +33,18 @@ export default function AdvancedImageEditor({
 }: AdvancedImageEditorProps) {
   const router = useRouter();
   const { user, userProfile } = useAuth();
+
+  // Helper function to get auth headers
+  const getAuthHeaders = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('No authentication token available');
+    }
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`
+    };
+  };
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
   const cursorCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -317,7 +330,8 @@ export default function AdvancedImageEditor({
           const url = `/api/poll-prediction?id=${predictionId}${
             queryParams ? `&${queryParams}` : ""
           }`;
-          const response = await fetch(url);
+          const headers = await getAuthHeaders();
+          const response = await fetch(url, { headers });
 
           if (!response.ok) {
             const errorData = await response
@@ -382,8 +396,10 @@ export default function AdvancedImageEditor({
 
       const poll = async () => {
         try {
+          const headers = await getAuthHeaders();
           const response = await fetch(
-            `/api/poll-prediction?id=${predictionId}`
+            `/api/poll-prediction?id=${predictionId}`,
+            { headers }
           );
 
           if (!response.ok) {
@@ -494,11 +510,10 @@ export default function AdvancedImageEditor({
       }, 1000);
 
       // Start the prediction
+      const headers = await getAuthHeaders();
       const response = await fetch("/api/ai-upscaler", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({
           image_data: imageBase64,
         }),
@@ -758,11 +773,10 @@ export default function AdvancedImageEditor({
       setExpandProgress(10);
 
       // Start the prediction
+      const headers = await getAuthHeaders();
       const response = await fetch("/api/reframe-image", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(requestBody),
       });
 

@@ -4,7 +4,13 @@ import { createBrowserClient } from '@supabase/ssr'
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: true,
+    storageKey: 'pixelai-auth',
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+  }
+})
 
 export const createServerClient = () => {
   return createClient(supabaseUrl, supabaseAnonKey)
@@ -52,62 +58,193 @@ export const signUpWithEmail = (email: string, password: string) => {
 
 // User data helpers
 export const getUserProfile = async (userId: string) => {
-  const { data, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', userId)
-    .single()
-  
-  return { data, error }
+  try {
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined') {
+      return { data: null, error: { message: 'Server-side execution not supported' } }
+    }
+
+    // Get the current session token
+    const { data: { session } } = await supabase.auth.getSession()
+    
+    if (!session?.access_token) {
+      return { data: null, error: { message: 'No authentication token' } }
+    }
+
+    const response = await fetch('/api/user-profile', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      return { data: null, error: errorData }
+    }
+
+    const result = await response.json()
+    return { data: result.data, error: null }
+  } catch (error) {
+    return { data: null, error: { message: 'Failed to fetch profile' } }
+  }
 }
 
 export const createUserProfile = async (userId: string, email: string) => {
-  const { data, error } = await supabase
-    .from('users')
-    .insert({
-      id: userId,
-      email,
-      subscription_tier: 'free',
-      upscale_quota: 0,
-      expand_quota: 0,
-      upscale_used: 0,
-      expand_used: 0
+  try {
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined') {
+      return { data: null, error: { message: 'Server-side execution not supported' } }
+    }
+
+    // Get the current session token
+    const { data: { session } } = await supabase.auth.getSession()
+    
+    if (!session?.access_token) {
+      return { data: null, error: { message: 'No authentication token' } }
+    }
+
+    const response = await fetch('/api/user-profile', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email })
     })
-    .select()
-    .single()
-  
-  return { data, error }
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      return { data: null, error: errorData }
+    }
+
+    const result = await response.json()
+    return { data: result.data, error: null }
+  } catch (error) {
+    return { data: null, error: { message: 'Failed to create profile' } }
+  }
 }
 
 export const updateUserQuota = async (userId: string, quotaType: 'upscale' | 'expand') => {
-  const field = quotaType === 'upscale' ? 'upscale_used' : 'expand_used'
-  
-  const { data, error } = await supabase
-    .from('users')
-    .update({ [field]: supabase.sql`${field} + 1` })
-    .eq('id', userId)
-    .select()
-    .single()
-  
-  return { data, error }
+  try {
+    // Check if we're in a browser environment
+    if (typeof window === 'undefined') {
+      return { data: null, error: { message: 'Server-side execution not supported' } }
+    }
+
+    // Get the current session token
+    const { data: { session } } = await supabase.auth.getSession()
+    
+    if (!session?.access_token) {
+      return { data: null, error: { message: 'No authentication token' } }
+    }
+
+    const response = await fetch('/api/user-profile', {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ quotaType })
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      return { data: null, error: errorData }
+    }
+
+    const result = await response.json()
+    return { data: result.data, error: null }
+  } catch (error) {
+    return { data: null, error: { message: 'Failed to update quota' } }
+  }
 }
 
-export const getUserImages = async (userId: string) => {
-  const { data, error } = await supabase
-    .from('user_images')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-  
-  return { data, error }
+export const getUserImages = async () => {
+  try {
+    // Get the current session token
+    const { data: { session } } = await supabase.auth.getSession()
+    
+    if (!session?.access_token) {
+      return { data: null, error: { message: 'No authentication token' } }
+    }
+
+    const response = await fetch('/api/user-images', {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      return { data: null, error: errorData }
+    }
+
+    const result = await response.json()
+    return { data: result.data, error: null }
+  } catch (error) {
+    return { data: null, error: { message: 'Failed to fetch images' } }
+  }
 }
 
-export const saveUserImage = async (imageData: Omit<UserImage, 'id' | 'created_at'>) => {
-  const { data, error } = await supabase
-    .from('user_images')
-    .insert(imageData)
-    .select()
-    .single()
-  
-  return { data, error }
+export const saveUserImage = async (imageData: Omit<UserImage, 'id' | 'created_at' | 'user_id'>) => {
+  try {
+    // Get the current session token
+    const { data: { session } } = await supabase.auth.getSession()
+    
+    if (!session?.access_token) {
+      return { data: null, error: { message: 'No authentication token' } }
+    }
+
+    const response = await fetch('/api/user-images', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(imageData)
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      return { data: null, error: errorData }
+    }
+
+    const result = await response.json()
+    return { data: result.data, error: null }
+  } catch (error) {
+    return { data: null, error: { message: 'Failed to save image' } }
+  }
+}
+
+export const deleteUserImage = async (imageId: string) => {
+  try {
+    // Get the current session token
+    const { data: { session } } = await supabase.auth.getSession()
+    
+    if (!session?.access_token) {
+      return { data: null, error: { message: 'No authentication token' } }
+    }
+
+    const response = await fetch(`/api/user-images?id=${encodeURIComponent(imageId)}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'Content-Type': 'application/json'
+      }
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json()
+      return { data: null, error: errorData }
+    }
+
+    const result = await response.json()
+    return { data: result.data, error: null }
+  } catch (error) {
+    return { data: null, error: { message: 'Failed to delete image' } }
+  }
 }
