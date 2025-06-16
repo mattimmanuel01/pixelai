@@ -38,7 +38,9 @@ export default function AdvancedImageEditor({
   const [prompt, setPrompt] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [activeFeature, setActiveFeature] = useState<"upscale" | "expand">("upscale");
+  const [activeFeature, setActiveFeature] = useState<"upscale" | "expand">(
+    "upscale"
+  );
   const [expandPrompt, setExpandPrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState("16:9");
   const [isExpanding, setIsExpanding] = useState(false);
@@ -97,10 +99,16 @@ export default function AdvancedImageEditor({
     const canvas = canvasRef.current;
     const maskCanvas = maskCanvasRef.current;
     const cursorCanvas = cursorCanvasRef.current;
-    
+
     // Validate all canvas elements exist and are connected to DOM
-    if (!canvas || !maskCanvas || !cursorCanvas || 
-        !canvas.isConnected || !maskCanvas.isConnected || !cursorCanvas.isConnected) {
+    if (
+      !canvas ||
+      !maskCanvas ||
+      !cursorCanvas ||
+      !canvas.isConnected ||
+      !maskCanvas.isConnected ||
+      !cursorCanvas.isConnected
+    ) {
       return;
     }
 
@@ -299,7 +307,9 @@ export default function AdvancedImageEditor({
 
       const poll = async () => {
         try {
-          const url = `/api/poll-prediction?id=${predictionId}${queryParams ? `&${queryParams}` : ''}`;
+          const url = `/api/poll-prediction?id=${predictionId}${
+            queryParams ? `&${queryParams}` : ""
+          }`;
           const response = await fetch(url);
 
           if (!response.ok) {
@@ -439,7 +449,7 @@ export default function AdvancedImageEditor({
 
       // Start progress simulation
       const progressInterval = setInterval(() => {
-        setUpscaleProgress(prev => {
+        setUpscaleProgress((prev) => {
           if (prev >= 90) return prev; // Stop at 90% until real completion
           return prev + Math.random() * 10;
         });
@@ -480,9 +490,13 @@ export default function AdvancedImageEditor({
       clearInterval(progressInterval);
 
       // Poll for completion with base64 conversion
-      const result = await pollForPrediction(initialData.predictionId, (progress) => {
-        setUpscaleProgress(90 + (progress * 10 / 100)); // Show 90-100%
-      }, `convertToBase64=true`);
+      const result = await pollForPrediction(
+        initialData.predictionId,
+        (progress) => {
+          setUpscaleProgress(90 + (progress * 10) / 100); // Show 90-100%
+        },
+        `convertToBase64=true`
+      );
 
       if (result.output) {
         setUpscaledImage(result.output);
@@ -496,8 +510,15 @@ export default function AdvancedImageEditor({
       }
     } catch (error) {
       console.error("Image upscaling failed:", error);
-      console.error("Error details:", error instanceof Error ? error.message : String(error));
-      alert(`Failed to process image upscaling: ${error instanceof Error ? error.message : String(error)}. Please try again.`);
+      console.error(
+        "Error details:",
+        error instanceof Error ? error.message : String(error)
+      );
+      alert(
+        `Failed to process image upscaling: ${
+          error instanceof Error ? error.message : String(error)
+        }. Please try again.`
+      );
     } finally {
       setIsUpscaling(false);
       setTimeout(() => setUpscaleProgress(0), 2000);
@@ -612,7 +633,12 @@ export default function AdvancedImageEditor({
 
   const processImageExpansion = async () => {
     if (!originalImage || !expandPrompt.trim()) {
-      console.log("Early return - originalImage:", !!originalImage, "expandPrompt:", expandPrompt.trim());
+      console.log(
+        "Early return - originalImage:",
+        !!originalImage,
+        "expandPrompt:",
+        expandPrompt.trim()
+      );
       return;
     }
 
@@ -634,20 +660,20 @@ export default function AdvancedImageEditor({
 
       // Convert canvas to base64
       const imageBase64 = canvas.toDataURL("image/png");
-      
+
       // Debug logging
       console.log("Canvas dimensions:", canvas.width, canvas.height);
       console.log("Image base64 length:", imageBase64.length);
       console.log("Expand prompt:", expandPrompt.trim());
       console.log("Aspect ratio:", aspectRatio);
       console.log("Expansion mode:", expansionMode);
-      
+
       // Validate we have data
       if (!imageBase64 || imageBase64.length < 100) {
         console.log("Invalid base64 data");
         return;
       }
-      
+
       if (!aspectRatio) {
         console.log("No aspect ratio set");
         return;
@@ -681,7 +707,10 @@ export default function AdvancedImageEditor({
 
       console.log("Sending request body:", requestBody);
       console.log("Request body keys:", Object.keys(requestBody));
-      console.log("Request body image_data length:", requestBody.image_data?.length);
+      console.log(
+        "Request body image_data length:",
+        requestBody.image_data?.length
+      );
       console.log("Request body aspect_ratio:", requestBody.aspect_ratio);
 
       // Update progress before making API call
@@ -707,7 +736,9 @@ export default function AdvancedImageEditor({
         } catch {
           errorData = { error: responseText || "Unknown error" };
         }
-        const errorMessage = errorData.error || `HTTP ${response.status}: Failed to start image expansion`;
+        const errorMessage =
+          errorData.error ||
+          `HTTP ${response.status}: Failed to start image expansion`;
         throw new Error(errorMessage);
       }
 
@@ -742,10 +773,10 @@ export default function AdvancedImageEditor({
             // Update canvas to match the result dimensions
             canvas.width = resultImg.width;
             canvas.height = resultImg.height;
-            
+
             // Draw the result image at full size
             ctx.drawImage(resultImg, 0, 0);
-            
+
             // Update the canvas bounds to reflect the new size
             const containerWidth = 800;
             const containerHeight = 600;
@@ -753,15 +784,15 @@ export default function AdvancedImageEditor({
               containerWidth / resultImg.width,
               containerHeight / resultImg.height
             );
-            
+
             const displayWidth = resultImg.width * ratio;
             const displayHeight = resultImg.height * ratio;
-            
+
             setCanvasBounds({
               width: displayWidth,
               height: displayHeight,
             });
-            
+
             setOriginalBounds({
               width: displayWidth,
               height: displayHeight,
@@ -774,8 +805,11 @@ export default function AdvancedImageEditor({
       }
     } catch (error) {
       console.error("Image expansion failed:", error);
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      alert(`Failed to process image expansion: ${errorMessage}. Please check the console for more details.`);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      alert(
+        `Failed to process image expansion: ${errorMessage}. Please check the console for more details.`
+      );
     } finally {
       setIsExpanding(false);
       setTimeout(() => setExpandProgress(0), 2000);
@@ -874,7 +908,7 @@ export default function AdvancedImageEditor({
                   {activeFeature === "upscale" && upscaledImage ? (
                     /* Before/After Drag Comparison */
                     <div className="w-full max-w-4xl mx-auto">
-                      <div 
+                      <div
                         className="relative cursor-ew-resize bg-gray-100 rounded-lg border-2 border-gray-200 overflow-hidden"
                         style={{
                           width: "800px",
@@ -886,17 +920,29 @@ export default function AdvancedImageEditor({
                           const handleMouseMove = (moveEvent: MouseEvent) => {
                             const rect = container.getBoundingClientRect();
                             const x = moveEvent.clientX - rect.left;
-                            const percentage = Math.max(0, Math.min(100, (x / rect.width) * 100));
+                            const percentage = Math.max(
+                              0,
+                              Math.min(100, (x / rect.width) * 100)
+                            );
                             setSliderPosition(percentage);
                           };
-                          
+
                           const handleMouseUp = () => {
-                            document.removeEventListener('mousemove', handleMouseMove);
-                            document.removeEventListener('mouseup', handleMouseUp);
+                            document.removeEventListener(
+                              "mousemove",
+                              handleMouseMove
+                            );
+                            document.removeEventListener(
+                              "mouseup",
+                              handleMouseUp
+                            );
                           };
-                          
-                          document.addEventListener('mousemove', handleMouseMove);
-                          document.addEventListener('mouseup', handleMouseUp);
+
+                          document.addEventListener(
+                            "mousemove",
+                            handleMouseMove
+                          );
+                          document.addEventListener("mouseup", handleMouseUp);
                         }}
                       >
                         {/* Background - Upscaled Image (After) */}
@@ -905,16 +951,20 @@ export default function AdvancedImageEditor({
                             src={upscaledImage}
                             alt="Upscaled"
                             className="w-full h-full object-contain"
-                            onLoad={() => console.log('Upscaled image loaded successfully')}
-                            onError={() => console.error('Failed to load upscaled image')}
+                            onLoad={() =>
+                              console.log("Upscaled image loaded successfully")
+                            }
+                            onError={() =>
+                              console.error("Failed to load upscaled image")
+                            }
                           />
                         </div>
-                        
+
                         {/* Foreground - Original Image (Before) - clips from right side */}
                         <div
                           className="absolute top-0 left-0 w-full h-full overflow-hidden"
                           style={{
-                            clipPath: `inset(0 0 0 ${sliderPosition}%)`
+                            clipPath: `inset(0 0 0 ${sliderPosition}%)`,
                           }}
                         >
                           <img
@@ -923,20 +973,20 @@ export default function AdvancedImageEditor({
                             className="w-full h-full object-contain"
                           />
                         </div>
-                        
+
                         {/* Divider Line */}
                         <div
                           className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg z-10"
                           style={{ left: `${sliderPosition}%` }}
                         />
-                        
+
                         {/* Drag Handle */}
                         <div
                           className="absolute w-8 h-8 bg-white rounded-full shadow-lg border-2 border-blue-500 flex items-center justify-center z-20"
-                          style={{ 
-                            left: `calc(${sliderPosition}% - 16px)`, 
-                            top: 'calc(50% - 16px)',
-                            cursor: 'ew-resize'
+                          style={{
+                            left: `calc(${sliderPosition}% - 16px)`,
+                            top: "calc(50% - 16px)",
+                            cursor: "ew-resize",
                           }}
                         >
                           <div className="flex gap-0.5">
@@ -944,7 +994,7 @@ export default function AdvancedImageEditor({
                             <div className="w-0.5 h-4 bg-blue-500 rounded"></div>
                           </div>
                         </div>
-                        
+
                         {/* Before/After Labels */}
                         <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1 rounded text-sm font-medium z-10">
                           After
@@ -1124,7 +1174,7 @@ export default function AdvancedImageEditor({
                           AI Image Upscaler
                         </h4>
                         <p className="text-xs text-blue-700 mb-3">
-                          Enhance your image quality with AI-powered upscaling. 
+                          Enhance your image quality with AI-powered upscaling.
                           Increase resolution while preserving details.
                         </p>
                       </div>
@@ -1137,7 +1187,9 @@ export default function AdvancedImageEditor({
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-600">Upscaling...</span>
-                          <span className="text-gray-600">{Math.round(upscaleProgress)}%</span>
+                          <span className="text-gray-600">
+                            {Math.round(upscaleProgress)}%
+                          </span>
                         </div>
                         <Progress value={upscaleProgress} className="h-2" />
                       </div>
@@ -1160,11 +1212,12 @@ export default function AdvancedImageEditor({
                           </Label>
                           <div className="bg-green-50 border border-green-200 rounded-lg p-3">
                             <p className="text-xs text-green-700">
-                              ✓ Upscaling completed! Drag anywhere on the image to compare before and after.
+                              ✓ Upscaling completed! Drag anywhere on the image
+                              to compare before and after.
                             </p>
                           </div>
                         </div>
-                        
+
                         <Button
                           onClick={() => {
                             setUpscaledImage(null);
@@ -1352,9 +1405,7 @@ export default function AdvancedImageEditor({
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Status:</span>
                 <Badge
-                  variant={
-                    isUpscaling || isExpanding ? "secondary" : "outline"
-                  }
+                  variant={isUpscaling || isExpanding ? "secondary" : "outline"}
                 >
                   {isUpscaling
                     ? "Upscaling..."
@@ -1373,9 +1424,7 @@ export default function AdvancedImageEditor({
                       : "bg-purple-50 text-purple-600 border-purple-200"
                   }`}
                 >
-                  {activeFeature === "upscale"
-                    ? "AI Upscaler"
-                    : "Expand Image"}
+                  {activeFeature === "upscale" ? "AI Upscaler" : "Expand Image"}
                 </Badge>
               </div>
               {upscaledImage && activeFeature === "upscale" && (
