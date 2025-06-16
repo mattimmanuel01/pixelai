@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  useState,
-  useRef,
-  useCallback,
-  useEffect,
-} from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -291,7 +286,11 @@ export default function AdvancedImageEditor({
           }
 
           const prediction = await response.json();
-          console.log(`Poll attempt ${attempts + 1}:`, prediction.status, prediction);
+          console.log(
+            `Poll attempt ${attempts + 1}:`,
+            prediction.status,
+            prediction
+          );
 
           // Update progress based on status
           if (onProgress) {
@@ -394,7 +393,7 @@ export default function AdvancedImageEditor({
       console.log("Generative fill response:", response);
       console.log("Response status:", response.status);
       console.log("Response statusText:", response.statusText);
-      
+
       // Log response body regardless of status
       const responseText = await response.text();
       console.log("Response body:", responseText);
@@ -437,6 +436,7 @@ export default function AdvancedImageEditor({
       alert("Failed to process generative fill. Please try again.");
     } finally {
       setIsProcessing(false);
+
       setTimeout(() => setProgress(0), 2000);
     }
   };
@@ -581,8 +581,8 @@ export default function AdvancedImageEditor({
           prompt: expandPrompt.trim(),
           custom_bounds: {
             width: Math.round(canvasBounds.width),
-            height: Math.round(canvasBounds.height)
-          }
+            height: Math.round(canvasBounds.height),
+          },
         };
       }
 
@@ -642,13 +642,13 @@ export default function AdvancedImageEditor({
               // For freestyle mode, crop the result to custom bounds
               canvas.width = canvasBounds.width;
               canvas.height = canvasBounds.height;
-              
+
               // Calculate center crop from the expanded image
               const imgAspect = resultImg.width / resultImg.height;
               const canvasAspect = canvasBounds.width / canvasBounds.height;
-              
+
               let drawWidth, drawHeight, drawX, drawY;
-              
+
               if (imgAspect > canvasAspect) {
                 // Image is wider, fit height and crop width
                 drawHeight = canvasBounds.height;
@@ -662,7 +662,7 @@ export default function AdvancedImageEditor({
                 drawX = 0;
                 drawY = (canvasBounds.height - drawHeight) / 2;
               }
-              
+
               ctx.drawImage(resultImg, drawX, drawY, drawWidth, drawHeight);
             } else {
               // For preset mode, just resize canvas to fit the result
