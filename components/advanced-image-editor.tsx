@@ -297,6 +297,7 @@ export default function AdvancedImageEditor({
     return new Promise((resolve, reject) => {
       let attempts = 0;
       const maxAttempts = 120; // 4 minutes max (2 seconds * 120 = 240 seconds)
+      let timeoutId: NodeJS.Timeout;
 
       const poll = async () => {
         try {
@@ -327,6 +328,7 @@ export default function AdvancedImageEditor({
               created_at: prediction.created_at,
               started_at: prediction.started_at,
               logs: prediction.logs ? prediction.logs.slice(-200) : null, // Last 200 chars of logs
+              tabHidden: document.hidden
             }
           );
 
@@ -369,12 +371,49 @@ export default function AdvancedImageEditor({
                 )
               );
             } else {
-              setTimeout(poll, 2000); // Poll every 2 seconds
+              // Use different polling intervals based on tab visibility
+              const isTabHidden = document.hidden;
+              const interval = isTabHidden ? 5000 : 2000; // 5s when hidden, 2s when active
+              
+              console.log(`Scheduling next poll in ${interval}ms (tab ${isTabHidden ? 'hidden' : 'active'})`);
+              timeoutId = setTimeout(poll, interval);
             }
           }
         } catch (error) {
           reject(error);
         }
+      };
+
+      // Cleanup function to clear timeout
+      const cleanup = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      };
+
+      // Listen for visibility changes during polling
+      const handleVisibilityChange = () => {
+        const wasHidden = document.hidden;
+        console.log(`Tab visibility changed to ${wasHidden ? 'hidden' : 'visible'} during polling`);
+        
+        // If tab becomes visible again, we might want to poll sooner
+        if (!wasHidden && timeoutId) {
+          clearTimeout(timeoutId);
+          console.log('Tab became visible - resuming polling immediately');
+          timeoutId = setTimeout(poll, 500); // Poll in 500ms when tab becomes active
+        }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      // Store cleanup function for potential future use
+      (resolve as any).cleanup = () => {
+        cleanup();
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+      (reject as any).cleanup = () => {
+        cleanup();
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
       };
 
       poll();
@@ -388,6 +427,7 @@ export default function AdvancedImageEditor({
     return new Promise((resolve, reject) => {
       let attempts = 0;
       const maxAttempts = 120; // 4 minutes max (2 seconds * 120 = 240 seconds)
+      let timeoutId: NodeJS.Timeout;
 
       const poll = async () => {
         try {
@@ -418,6 +458,7 @@ export default function AdvancedImageEditor({
               created_at: prediction.created_at,
               started_at: prediction.started_at,
               logs: prediction.logs ? prediction.logs.slice(-200) : null, // Last 200 chars of logs
+              tabHidden: document.hidden
             }
           );
 
@@ -460,12 +501,49 @@ export default function AdvancedImageEditor({
                 )
               );
             } else {
-              setTimeout(poll, 2000); // Poll every 2 seconds
+              // Use different polling intervals based on tab visibility
+              const isTabHidden = document.hidden;
+              const interval = isTabHidden ? 5000 : 2000; // 5s when hidden, 2s when active
+              
+              console.log(`Scheduling next poll in ${interval}ms (tab ${isTabHidden ? 'hidden' : 'active'})`);
+              timeoutId = setTimeout(poll, interval);
             }
           }
         } catch (error) {
           reject(error);
         }
+      };
+
+      // Cleanup function to clear timeout
+      const cleanup = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+      };
+
+      // Listen for visibility changes during polling
+      const handleVisibilityChange = () => {
+        const wasHidden = document.hidden;
+        console.log(`Tab visibility changed to ${wasHidden ? 'hidden' : 'visible'} during polling`);
+        
+        // If tab becomes visible again, we might want to poll sooner
+        if (!wasHidden && timeoutId) {
+          clearTimeout(timeoutId);
+          console.log('Tab became visible - resuming polling immediately');
+          timeoutId = setTimeout(poll, 500); // Poll in 500ms when tab becomes active
+        }
+      };
+
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+
+      // Store cleanup function for potential future use
+      (resolve as any).cleanup = () => {
+        cleanup();
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+      (reject as any).cleanup = () => {
+        cleanup();
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
       };
 
       poll();
@@ -1273,9 +1351,9 @@ export default function AdvancedImageEditor({
                             </p>
                             {tabHidden && isUpscaling && (
                               <p className="text-xs text-orange-600 bg-orange-50 p-2 rounded">
-                                ⚠️ Tab is in background - processing may be
-                                slower. Keep this tab active for best
-                                performance.
+                                ⚠️ Tab is in background - polling is still active but
+                                may be slower. Processing will continue and resume
+                                normal speed when tab becomes active.
                               </p>
                             )}
                             {upscaleProgress > 10 && upscaleProgress < 30 && (
