@@ -1,5 +1,5 @@
 # PixelAI - AI-Powered Image Editor SaaS
-
+ 
 A modern, full-featured image editing SaaS application built with Next.js, featuring AI background removal and generative fill capabilities.
 
 ## 🚀 Features
