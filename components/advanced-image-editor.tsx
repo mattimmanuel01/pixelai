@@ -65,7 +65,7 @@ export default function AdvancedImageEditor({
   imageUrl,
 }: AdvancedImageEditorProps) {
   const router = useRouter();
-  const { user, userProfile } = useAuth();
+  const { user, userProfile, refreshProfile } = useAuth();
 
   // Helper function to get auth headers
   const getAuthHeaders = async () => {
