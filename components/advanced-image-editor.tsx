@@ -579,6 +579,9 @@ export default function AdvancedImageEditor({
         if (user && result.output) {
           await saveProcessedImageToProjects(result.output, "upscale");
         }
+        
+        // Refresh user profile to update quota counter
+        await refreshProfile();
       } else {
         throw new Error("No upscaled image in response");
       }
@@ -880,6 +883,9 @@ export default function AdvancedImageEditor({
             if (user && prediction.output) {
               await saveProcessedImageToProjects(prediction.output, "expand");
             }
+            
+            // Refresh user profile to update quota counter
+            await refreshProfile();
           }
         };
         resultImg.src = prediction.output;
