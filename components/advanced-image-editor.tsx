@@ -2,16 +2,12 @@
 
 import { useState, useRef, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Brush,
-  Eraser,
   Download,
-  Sparkles,
   ArrowLeft,
   Expand,
   RectangleHorizontal,
@@ -20,9 +16,9 @@ import {
   Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useAuth } from '@/contexts/AuthContext';
-import UpgradeModal from '@/components/modals/UpgradeModal';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from "@/contexts/AuthContext";
+import UpgradeModal from "@/components/modals/UpgradeModal";
+import { supabase } from "@/lib/supabase";
 
 interface AdvancedImageEditorProps {
   imageUrl: string;
@@ -36,24 +32,20 @@ export default function AdvancedImageEditor({
 
   // Helper function to get auth headers
   const getAuthHeaders = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     if (!session?.access_token) {
-      throw new Error('No authentication token available');
+      throw new Error("No authentication token available");
     }
     return {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session.access_token}`
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${session.access_token}`,
     };
   };
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
   const cursorCanvasRef = useRef<HTMLCanvasElement>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const [brushSize, setBrushSize] = useState(20);
-  const [tool, setTool] = useState<"brush" | "eraser">("brush");
-  const [prompt, setPrompt] = useState("");
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(0);
   const [activeFeature, setActiveFeature] = useState<"upscale" | "expand">(
     "upscale"
   );
@@ -80,13 +72,12 @@ export default function AdvancedImageEditor({
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(
     null
   );
-  const [, setMousePos] = useState({ x: 0, y: 0 });
-  const [showCursor, setShowCursor] = useState(false);
-  const [lastPos, setLastPos] = useState<{ x: number; y: number } | null>(null);
-  
+
   // Modal states
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [upgradeFeature, setUpgradeFeature] = useState<'upscale' | 'expand'>('upscale');
+  const [upgradeFeature, setUpgradeFeature] = useState<"upscale" | "expand">(
+    "upscale"
+  );
 
   useEffect(() => {
     const img = new Image();
@@ -173,147 +164,6 @@ export default function AdvancedImageEditor({
 
     // Initialize mask canvas with transparent background
     maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
-  };
-
-  const startDrawing = useCallback(
-    (e: React.MouseEvent) => {
-      const canvas = maskCanvasRef.current;
-      if (!canvas || !canvas.isConnected) return;
-
-      const rect = canvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-      const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-
-      setIsDrawing(true);
-      setLastPos({ x, y });
-
-      // Draw initial dot
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      if (tool === "brush") {
-        // Create a flat mask - areas are either selected (1) or not (0)
-        ctx.globalCompositeOperation = "source-over";
-        ctx.fillStyle = "rgba(239, 68, 68, 1)"; // Full opacity
-        ctx.beginPath();
-        ctx.arc(x, y, brushSize / 2, 0, 2 * Math.PI);
-        ctx.fill();
-      } else {
-        ctx.globalCompositeOperation = "destination-out";
-        ctx.beginPath();
-        ctx.arc(x, y, brushSize / 2, 0, 2 * Math.PI);
-        ctx.fill();
-      }
-    },
-    [tool, brushSize]
-  );
-
-  const stopDrawing = useCallback(() => {
-    setIsDrawing(false);
-    setLastPos(null);
-  }, []);
-
-  const draw = useCallback(
-    (e: React.MouseEvent) => {
-      if (!isDrawing || !lastPos) return;
-
-      const canvas = maskCanvasRef.current;
-      if (!canvas || !canvas.isConnected) return;
-
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      const rect = canvas.getBoundingClientRect();
-      const currentX = (e.clientX - rect.left) * (canvas.width / rect.width);
-      const currentY = (e.clientY - rect.top) * (canvas.height / rect.height);
-
-      // Calculate distance to prevent overlapping circles
-      const distance = Math.sqrt(
-        Math.pow(currentX - lastPos.x, 2) + Math.pow(currentY - lastPos.y, 2)
-      );
-
-      // Only draw if we've moved enough to prevent overlap
-      if (distance < brushSize * 0.1) return;
-
-      if (tool === "brush") {
-        // Create flat binary mask - painting over doesn't increase opacity
-        ctx.globalCompositeOperation = "source-over";
-        ctx.strokeStyle = "rgba(239, 68, 68, 1)"; // Full opacity for clean mask
-        ctx.lineWidth = brushSize;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-
-        ctx.beginPath();
-        ctx.moveTo(lastPos.x, lastPos.y);
-        ctx.lineTo(currentX, currentY);
-        ctx.stroke();
-      } else {
-        // Erase smooth line between points
-        ctx.globalCompositeOperation = "destination-out";
-        ctx.lineWidth = brushSize;
-        ctx.lineCap = "round";
-        ctx.lineJoin = "round";
-
-        ctx.beginPath();
-        ctx.moveTo(lastPos.x, lastPos.y);
-        ctx.lineTo(currentX, currentY);
-        ctx.stroke();
-      }
-
-      setLastPos({ x: currentX, y: currentY });
-    },
-    [isDrawing, tool, brushSize, lastPos]
-  );
-
-  const clearMask = () => {
-    const canvas = maskCanvasRef.current;
-    if (!canvas || !canvas.isConnected) return;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    // Clear the entire mask canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  };
-
-  const updateCursor = useCallback(
-    (e: React.MouseEvent) => {
-      const canvas = cursorCanvasRef.current;
-      if (!canvas || !canvas.isConnected) return;
-
-      const rect = canvas.getBoundingClientRect();
-      const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-      const y = (e.clientY - rect.top) * (canvas.height / rect.height);
-
-      setMousePos({ x, y });
-
-      // Draw cursor outline
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      if (showCursor) {
-        ctx.strokeStyle = tool === "brush" ? "#ef4444" : "#6b7280";
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 4]);
-        ctx.beginPath();
-        ctx.arc(x, y, brushSize / 2, 0, 2 * Math.PI);
-        ctx.stroke();
-        ctx.setLineDash([]);
-      }
-    },
-    [brushSize, tool, showCursor]
-  );
-
-  const handleMouseEnter = () => setShowCursor(true);
-  const handleMouseLeave = () => {
-    setShowCursor(false);
-    const canvas = cursorCanvasRef.current;
-    if (canvas && canvas.isConnected) {
-      const ctx = canvas.getContext("2d");
-      ctx?.clearRect(0, 0, canvas.width, canvas.height);
-    }
   };
 
   const pollForPrediction = async (
@@ -456,38 +306,40 @@ export default function AdvancedImageEditor({
   };
 
   // Check if user can use Pro features
-  const canUseProFeature = (feature: 'upscale' | 'expand') => {
+  const canUseProFeature = (feature: "upscale" | "expand") => {
     if (!user) return false;
     if (!userProfile) return false;
-    if (userProfile.subscription_tier !== 'pro') return false;
-    
-    const quotaField = feature === 'upscale' ? 'upscale_quota' : 'expand_quota';
-    const usedField = feature === 'upscale' ? 'upscale_used' : 'expand_used';
-    
+    if (userProfile.subscription_tier !== "pro") return false;
+
+    const quotaField = feature === "upscale" ? "upscale_quota" : "expand_quota";
+    const usedField = feature === "upscale" ? "upscale_used" : "expand_used";
+
     return userProfile[usedField] < userProfile[quotaField];
   };
 
-  const handleProFeatureClick = (feature: 'upscale' | 'expand') => {
-    if (!user || !userProfile || userProfile.subscription_tier !== 'pro') {
+  const handleProFeatureClick = (feature: "upscale" | "expand") => {
+    if (!user || !userProfile || userProfile.subscription_tier !== "pro") {
       setUpgradeFeature(feature);
       setShowUpgradeModal(true);
       return false;
     }
-    
+
     if (!canUseProFeature(feature)) {
       // Show quota exceeded modal
-      alert(`You've reached your monthly ${feature} limit. Upgrade or wait for next month's reset.`);
+      alert(
+        `You've reached your monthly ${feature} limit. Upgrade or wait for next month's reset.`
+      );
       return false;
     }
-    
+
     return true;
   };
 
   const processImageUpscale = async () => {
     if (!originalImage) return;
-    
+
     // Check Pro access
-    if (!handleProFeatureClick('upscale')) return;
+    if (!handleProFeatureClick("upscale")) return;
 
     setIsUpscaling(true);
     setUpscaleProgress(0);
@@ -696,7 +548,7 @@ export default function AdvancedImageEditor({
     }
 
     // Check Pro access
-    if (!handleProFeatureClick('expand')) return;
+    if (!handleProFeatureClick("expand")) return;
 
     setIsExpanding(true);
     setExpandProgress(5); // Show initial progress
@@ -1497,7 +1349,7 @@ export default function AdvancedImageEditor({
           </div>
         </div>
       </div>
-      
+
       {/* Upgrade Modal */}
       <UpgradeModal
         isOpen={showUpgradeModal}
