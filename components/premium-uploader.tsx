@@ -614,50 +614,22 @@ export default function PremiumUploader() {
                   boundsPadding={0}
                   clip="both"
                   itemOne={
-                    <div style={{ 
-                      width: '100%', 
-                      height: '600px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: '#f8f9fa'
-                    }}>
-                      <img
-                        src="/expand-before.png"
-                        alt="Original image"
-                        style={{
-                          maxWidth: '100%',
-                          maxHeight: '100%',
-                          objectFit: 'contain'
-                        }}
-                      />
-                    </div>
+                    <ReactCompareSliderImage 
+                      alt="Original image" 
+                      src="/expand-before.png"
+                    />
                   }
                   itemTwo={
-                    <div style={{ 
-                      width: '100%', 
-                      height: '600px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      backgroundColor: '#f8f9fa'
-                    }}>
-                      <img
-                        src="/expand-after.png"
-                        alt="AI expanded image"
-                        style={{
-                          maxWidth: '100%',
-                          maxHeight: '100%',
-                          objectFit: 'contain'
-                        }}
-                      />
-                    </div>
+                    <ReactCompareSliderImage 
+                      alt="AI expanded image" 
+                      src="/expand-after.png"
+                    />
                   }
                   keyboardIncrement="5%"
                   position={50}
                   style={{
                     width: '100%',
-                    height: '600px'
+                    height: '400px'
                   }}
                 />
               </div>

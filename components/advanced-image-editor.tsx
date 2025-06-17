@@ -19,6 +19,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import UpgradeModal from "@/components/modals/UpgradeModal";
 import { supabase, saveUserImage } from "@/lib/supabase";
+import { ReactCompareSlider, ReactCompareSliderImage } from 'react-compare-slider';
 
 interface AdvancedImageEditorProps {
   imageUrl: string;
@@ -1018,101 +1019,51 @@ export default function AdvancedImageEditor({
                 {/* Main Canvas Container */}
                 <div className="relative border-2 border-gray-200 rounded-lg overflow-hidden bg-white shadow-sm">
                   {activeFeature === "upscale" && upscaledImage ? (
-                    /* Before/After Drag Comparison */
+                    /* Before/After Comparison with ReactCompareSlider */
                     <div className="w-full max-w-4xl mx-auto">
-                      <div
-                        className="relative cursor-ew-resize bg-gray-100 rounded-lg border-2 border-gray-200 overflow-hidden"
-                        style={{
-                          width: "800px",
-                          height: "600px",
-                          maxWidth: "100%",
-                        }}
-                        onMouseDown={(e) => {
-                          const container = e.currentTarget;
-                          const handleMouseMove = (moveEvent: MouseEvent) => {
-                            const rect = container.getBoundingClientRect();
-                            const x = moveEvent.clientX - rect.left;
-                            const percentage = Math.max(
-                              0,
-                              Math.min(100, (x / rect.width) * 100)
-                            );
-                            setSliderPosition(percentage);
-                          };
-
-                          const handleMouseUp = () => {
-                            document.removeEventListener(
-                              "mousemove",
-                              handleMouseMove
-                            );
-                            document.removeEventListener(
-                              "mouseup",
-                              handleMouseUp
-                            );
-                          };
-
-                          document.addEventListener(
-                            "mousemove",
-                            handleMouseMove
-                          );
-                          document.addEventListener("mouseup", handleMouseUp);
-                        }}
-                      >
-                        {/* Background - Upscaled Image (After) */}
-                        <div className="absolute top-0 left-0 w-full h-full">
-                          <img
-                            src={upscaledImage}
-                            alt="Upscaled"
-                            className="w-full h-full object-contain"
-                            onLoad={() =>
-                              console.log("Upscaled image loaded successfully")
-                            }
-                            onError={() =>
-                              console.error("Failed to load upscaled image")
-                            }
-                          />
-                        </div>
-
-                        {/* Foreground - Original Image (Before) - clips from right side */}
-                        <div
-                          className="absolute top-0 left-0 w-full h-full overflow-hidden"
+                      <div className="rounded-lg overflow-hidden border-2 border-gray-200 shadow-lg">
+                        <ReactCompareSlider
+                          boundsPadding={0}
+                          clip="both"
+                          itemOne={
+                            <ReactCompareSliderImage 
+                              alt="Original image" 
+                              src={imageUrl}
+                              style={{ 
+                                width: '100%', 
+                                height: '600px',
+                                objectFit: 'contain',
+                                backgroundColor: '#f8f9fa'
+                              }}
+                            />
+                          }
+                          itemTwo={
+                            <ReactCompareSliderImage 
+                              alt="AI upscaled image" 
+                              src={upscaledImage}
+                              style={{ 
+                                width: '100%', 
+                                height: '600px',
+                                objectFit: 'contain',
+                                backgroundColor: '#f8f9fa'
+                              }}
+                            />
+                          }
+                          keyboardIncrement="5%"
+                          position={sliderPosition}
+                          onPositionChange={setSliderPosition}
                           style={{
-                            clipPath: `inset(0 0 0 ${sliderPosition}%)`,
+                            width: '100%',
+                            height: '600px'
                           }}
-                        >
-                          <img
-                            src={imageUrl}
-                            alt="Original"
-                            className="w-full h-full object-contain"
-                          />
-                        </div>
-
-                        {/* Divider Line */}
-                        <div
-                          className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg z-10"
-                          style={{ left: `${sliderPosition}%` }}
                         />
-
-                        {/* Drag Handle */}
-                        <div
-                          className="absolute w-8 h-8 bg-white rounded-full shadow-lg border-2 border-blue-500 flex items-center justify-center z-20"
-                          style={{
-                            left: `calc(${sliderPosition}% - 16px)`,
-                            top: "calc(50% - 16px)",
-                            cursor: "ew-resize",
-                          }}
-                        >
-                          <div className="flex gap-0.5">
-                            <div className="w-0.5 h-4 bg-blue-500 rounded"></div>
-                            <div className="w-0.5 h-4 bg-blue-500 rounded"></div>
-                          </div>
-                        </div>
-
+                        
                         {/* Before/After Labels */}
                         <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1 rounded text-sm font-medium z-10">
-                          After
+                          Before
                         </div>
                         <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded text-sm font-medium z-10">
-                          Before
+                          After
                         </div>
                       </div>
                     </div>
