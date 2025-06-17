@@ -18,11 +18,47 @@ import {
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import UpgradeModal from "@/components/modals/UpgradeModal";
-import { supabase } from "@/lib/supabase";
+import { supabase, saveUserImage } from "@/lib/supabase";
 
 interface AdvancedImageEditorProps {
   imageUrl: string;
 }
+
+// Helper function to upload base64 image to storage
+const uploadImageToStorage = async (
+  base64Data: string,
+  fileName: string
+): Promise<string | null> => {
+  try {
+    const response = await fetch("/api/upload-image", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        imageData: base64Data,
+        filename: fileName,
+      }),
+    });
+
+    if (!response.ok) {
+      console.error("Failed to upload image to storage");
+      return null;
+    }
+
+    const { publicUrl } = await response.json();
+    return publicUrl;
+  } catch (error) {
+    console.error("Error uploading image:", error);
+    return null;
+  }
+};
+
+// Helper function to get file size from base64
+const getBase64FileSize = (base64: string): number => {
+  const base64String = base64.split(",")[1] || base64;
+  return Math.round((base64String.length * 3) / 4);
+};
 
 export default function AdvancedImageEditor({
   imageUrl,
@@ -42,6 +78,75 @@ export default function AdvancedImageEditor({
       "Content-Type": "application/json",
       Authorization: `Bearer ${session.access_token}`,
     };
+  };
+
+  // Helper function to save processed image to database
+  const saveProcessedImageToProjects = async (
+    processedImageUrl: string,
+    operationType: "upscale" | "expand"
+  ) => {
+    if (!user) return;
+
+    try {
+      let base64Data: string;
+      let fileSize: number;
+      
+      // If it's already base64 (for expand operations), use directly
+      if (processedImageUrl.startsWith("data:")) {
+        base64Data = processedImageUrl;
+        fileSize = getBase64FileSize(processedImageUrl);
+      } else {
+        // If it's a URL (for upscale operations), fetch and convert to base64
+        console.log("Fetching image from URL for saving:", processedImageUrl);
+        const response = await fetch(processedImageUrl);
+        if (!response.ok) {
+          throw new Error("Failed to fetch processed image");
+        }
+        
+        const blob = await response.blob();
+        fileSize = blob.size;
+        
+        // Convert to base64 in browser environment
+        const arrayBuffer = await blob.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+        let binaryString = '';
+        for (let i = 0; i < uint8Array.length; i++) {
+          binaryString += String.fromCharCode(uint8Array[i]);
+        }
+        const base64 = btoa(binaryString);
+        const mimeType = blob.type || 'image/jpeg';
+        base64Data = `data:${mimeType};base64,${base64}`;
+      }
+
+      // Upload processed image to storage  
+      const extension = base64Data.startsWith("data:image/jpeg") ? "jpg" : "png";
+      const fileName = `processed-${operationType}-${Date.now()}.${extension}`;
+      const uploadedUrl = await uploadImageToStorage(base64Data, fileName);
+
+      if (!uploadedUrl) {
+        console.error("Failed to upload processed image to storage");
+        return;
+      }
+
+      // Save to database
+      const imageData = {
+        original_url: imageUrl,
+        processed_url: uploadedUrl,
+        operation_type: operationType,
+        file_name: fileName,
+        file_size: fileSize,
+      };
+
+      const result = await saveUserImage(imageData);
+
+      if (result.error) {
+        console.error("Failed to save image to database:", result.error);
+      } else {
+        console.log("Successfully saved processed image to projects");
+      }
+    } catch (error) {
+      console.error("Error saving processed image:", error);
+    }
   };
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const maskCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -72,6 +177,7 @@ export default function AdvancedImageEditor({
   const [originalImage, setOriginalImage] = useState<HTMLImageElement | null>(
     null
   );
+  const [tabHidden, setTabHidden] = useState(false);
 
   // Modal states
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
@@ -97,6 +203,22 @@ export default function AdvancedImageEditor({
       img.onerror = null;
     };
   }, [imageUrl]);
+
+  // Monitor tab visibility
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      setTabHidden(document.hidden);
+      if (document.hidden) {
+        console.log("Tab became hidden - polling may be throttled");
+      } else {
+        console.log("Tab became visible - polling should resume normal speed");
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
 
   // Re-initialize canvas when switching between modes or when upscaled image changes
   useEffect(() => {
@@ -173,7 +295,7 @@ export default function AdvancedImageEditor({
   ): Promise<unknown> => {
     return new Promise((resolve, reject) => {
       let attempts = 0;
-      const maxAttempts = 120; // 2 minutes max (2 seconds * 120)
+      const maxAttempts = 120; // 4 minutes max (2 seconds * 120 = 240 seconds)
 
       const poll = async () => {
         try {
@@ -194,10 +316,17 @@ export default function AdvancedImageEditor({
           }
 
           const prediction = await response.json();
+          const timestamp = new Date().toLocaleTimeString();
           console.log(
-            `Poll attempt ${attempts + 1}:`,
+            `Poll attempt ${attempts + 1} at ${timestamp}:`,
             prediction.status,
-            prediction
+            {
+              id: prediction.id,
+              status: prediction.status,
+              created_at: prediction.created_at,
+              started_at: prediction.started_at,
+              logs: prediction.logs ? prediction.logs.slice(-200) : null, // Last 200 chars of logs
+            }
           );
 
           // Update progress based on status
@@ -217,12 +346,27 @@ export default function AdvancedImageEditor({
             prediction.status === "canceled"
           ) {
             console.error("Prediction failed:", prediction.error);
-            reject(new Error("Prediction failed"));
+            reject(new Error(prediction.error || "Prediction failed"));
           } else {
             // Still processing, poll again
             attempts++;
+
+            // If stuck on "starting" for too long, show warning but continue
+            if (prediction.status === "starting" && attempts > 20) {
+              console.warn(
+                `Prediction still starting after ${attempts} attempts. Cold start may take up to 4 minutes.`
+              );
+            }
+
             if (attempts >= maxAttempts) {
-              reject(new Error("Prediction timed out"));
+              console.error(
+                `Prediction timed out after ${maxAttempts} attempts. Last status: ${prediction.status}`
+              );
+              reject(
+                new Error(
+                  `Prediction timed out. Last status: ${prediction.status}. Please try again.`
+                )
+              );
             } else {
               setTimeout(poll, 2000); // Poll every 2 seconds
             }
@@ -242,7 +386,7 @@ export default function AdvancedImageEditor({
   ): Promise<unknown> => {
     return new Promise((resolve, reject) => {
       let attempts = 0;
-      const maxAttempts = 120; // 2 minutes max (2 seconds * 120)
+      const maxAttempts = 120; // 4 minutes max (2 seconds * 120 = 240 seconds)
 
       const poll = async () => {
         try {
@@ -263,10 +407,17 @@ export default function AdvancedImageEditor({
           }
 
           const prediction = await response.json();
+          const timestamp = new Date().toLocaleTimeString();
           console.log(
-            `Poll attempt ${attempts + 1}:`,
+            `Poll attempt ${attempts + 1} at ${timestamp}:`,
             prediction.status,
-            prediction
+            {
+              id: prediction.id,
+              status: prediction.status,
+              created_at: prediction.created_at,
+              started_at: prediction.started_at,
+              logs: prediction.logs ? prediction.logs.slice(-200) : null, // Last 200 chars of logs
+            }
           );
 
           // Update progress based on status
@@ -286,12 +437,27 @@ export default function AdvancedImageEditor({
             prediction.status === "canceled"
           ) {
             console.error("Prediction failed:", prediction.error);
-            reject(new Error("Prediction failed"));
+            reject(new Error(prediction.error || "Prediction failed"));
           } else {
             // Still processing, poll again
             attempts++;
+
+            // If stuck on "starting" for too long, show warning but continue
+            if (prediction.status === "starting" && attempts > 20) {
+              console.warn(
+                `Prediction still starting after ${attempts} attempts. Cold start may take up to 4 minutes.`
+              );
+            }
+
             if (attempts >= maxAttempts) {
-              reject(new Error("Prediction timed out"));
+              console.error(
+                `Prediction timed out after ${maxAttempts} attempts. Last status: ${prediction.status}`
+              );
+              reject(
+                new Error(
+                  `Prediction timed out. Last status: ${prediction.status}. Please try again.`
+                )
+              );
             } else {
               setTimeout(poll, 2000); // Poll every 2 seconds
             }
@@ -345,11 +511,9 @@ export default function AdvancedImageEditor({
     setUpscaleProgress(0);
 
     try {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      // Convert canvas to base64
-      const imageBase64 = canvas.toDataURL("image/png");
+      // Use the original image URL directly instead of canvas
+      // This preserves the original size and quality
+      const originalImageUrl = imageUrl;
 
       console.log("Starting image upscale...");
 
@@ -367,7 +531,7 @@ export default function AdvancedImageEditor({
         method: "POST",
         headers,
         body: JSON.stringify({
-          image_data: imageBase64,
+          image_url: originalImageUrl, // This is now actually a URL
         }),
       });
 
@@ -408,8 +572,12 @@ export default function AdvancedImageEditor({
         setUpscaleProgress(100);
         console.log("Upscaled image received as base64");
         console.log("Original bounds:", originalBounds);
-        console.log("Canvas dimensions:", canvas.width, canvas.height);
         console.log("Slider position:", sliderPosition);
+
+        // Save upscaled image to user projects if authenticated
+        if (user && result.output) {
+          await saveProcessedImageToProjects(result.output, "upscale");
+        }
       } else {
         throw new Error("No upscaled image in response");
       }
@@ -673,7 +841,7 @@ export default function AdvancedImageEditor({
       if (prediction.output) {
         const resultImg = new Image();
         resultImg.crossOrigin = "anonymous";
-        resultImg.onload = () => {
+        resultImg.onload = async () => {
           const ctx = canvas.getContext("2d");
           if (ctx) {
             // Always preserve the aspect ratio of the result image
@@ -706,6 +874,11 @@ export default function AdvancedImageEditor({
               x: 0,
               y: 0,
             });
+
+            // Save expanded image to user projects if authenticated
+            if (user && prediction.output) {
+              await saveProcessedImageToProjects(prediction.output, "expand");
+            }
           }
         };
         resultImg.src = prediction.output;
@@ -723,17 +896,48 @@ export default function AdvancedImageEditor({
     }
   };
 
-  const downloadImage = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !canvas.isConnected) return;
-
+  const downloadImage = async () => {
     try {
+      let imageUrl: string;
+      let fileName: string;
+
+      // If we have an upscaled image, download that instead of the canvas
+      if (upscaledImage && activeFeature === "upscale") {
+        // If it's a URL, we need to fetch it first to trigger download
+        if (upscaledImage.startsWith("http")) {
+          // For URLs, create a download link that forces download
+          const link = document.createElement("a");
+          link.href = upscaledImage;
+          link.download = "upscaled-image.jpg";
+          link.target = "_blank";
+          link.click();
+          return;
+        } else {
+          // For base64 data (fallback)
+          imageUrl = upscaledImage;
+          const extension = upscaledImage.startsWith("data:image/jpeg") ? "jpg" : "png";
+          fileName = `upscaled-image.${extension}`;
+        }
+      } else {
+        // Otherwise, download the canvas content (original or expanded image)
+        const canvas = canvasRef.current;
+        if (!canvas || !canvas.isConnected) return;
+
+        imageUrl = canvas.toDataURL();
+        fileName =
+          activeFeature === "expand"
+            ? "expanded-image.png"
+            : "edited-image.png";
+      }
+
+      // Create and trigger download for base64 data
       const link = document.createElement("a");
-      link.download = "edited-image.png";
-      link.href = canvas.toDataURL();
+      link.download = fileName;
+      link.href = imageUrl;
       link.click();
     } catch (error) {
       console.error("Failed to download image:", error);
+      alert("Failed to download image. Please try again.");
     }
   };
 
@@ -762,6 +966,7 @@ export default function AdvancedImageEditor({
               onClick={downloadImage}
               variant="outline"
               className="border-gray-200 text-gray-700 hover:bg-gray-50"
+              disabled={activeFeature === "upscale" && !upscaledImage}
             >
               <Download className="w-4 h-4 mr-2" />
               Download
@@ -1093,12 +1298,44 @@ export default function AdvancedImageEditor({
                     {isUpscaling && (
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Upscaling...</span>
+                          <span className="text-gray-600">
+                            {upscaleProgress < 30
+                              ? "Starting AI upscaler..."
+                              : "Upscaling..."}
+                          </span>
                           <span className="text-gray-600">
                             {Math.round(upscaleProgress)}%
                           </span>
                         </div>
                         <Progress value={upscaleProgress} className="h-2" />
+                        {upscaleProgress < 30 && (
+                          <div className="space-y-2">
+                            <p className="text-xs text-gray-500">
+                              The AI model is starting up. Cold start can take
+                              up to 4 minutes for the first request.
+                            </p>
+                            {tabHidden && isUpscaling && (
+                              <p className="text-xs text-orange-600 bg-orange-50 p-2 rounded">
+                                ⚠️ Tab is in background - processing may be
+                                slower. Keep this tab active for best
+                                performance.
+                              </p>
+                            )}
+                            {upscaleProgress > 10 && upscaleProgress < 30 && (
+                              <Button
+                                onClick={() => {
+                                  setIsUpscaling(false);
+                                  setUpscaleProgress(0);
+                                }}
+                                variant="outline"
+                                size="sm"
+                                className="w-full text-xs"
+                              >
+                                Cancel & Retry Later
+                              </Button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -1125,17 +1362,34 @@ export default function AdvancedImageEditor({
                           </div>
                         </div>
 
-                        <Button
-                          onClick={() => {
-                            setUpscaledImage(null);
-                            setSliderPosition(50);
-                          }}
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                        >
-                          Start Over
-                        </Button>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            onClick={() => {
+                              if (upscaledImage) {
+                                if (upscaledImage.startsWith("http")) {
+                                  // For URLs, create a download link
+                                  const link = document.createElement("a");
+                                  link.href = upscaledImage;
+                                  link.download = "upscaled-image.jpg";
+                                  link.target = "_blank";
+                                  link.click();
+                                } else {
+                                  // For base64 data (fallback)
+                                  const extension = upscaledImage.startsWith("data:image/jpeg") ? "jpg" : "png";
+                                  const link = document.createElement("a");
+                                  link.download = `upscaled-image.${extension}`;
+                                  link.href = upscaledImage;
+                                  link.click();
+                                }
+                              }
+                            }}
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            size="sm"
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Download
+                          </Button>
+                        </div>
                       </div>
                     )}
 

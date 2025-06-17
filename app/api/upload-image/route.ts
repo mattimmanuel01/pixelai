@@ -15,13 +15,21 @@ export async function POST(request: NextRequest) {
   try {
     const requestBody = await request.json();
     console.log("Upload API - received keys:", Object.keys(requestBody));
+    console.log("Upload API - full request body:", {
+      imageData: requestBody.imageData ? `${requestBody.imageData.substring(0, 50)}...` : null,
+      filename: requestBody.filename,
+      fileName: requestBody.fileName // Check for casing issue
+    });
 
-    const { imageData, filename } = requestBody;
+    const { imageData, filename, fileName } = requestBody;
+    const actualFilename = filename || fileName; // Handle both cases
 
-    if (!imageData || !filename) {
+    if (!imageData || !actualFilename) {
       console.log("Upload API - missing fields:", {
         imageData: !!imageData,
         filename: !!filename,
+        fileName: !!fileName,
+        actualFilename: !!actualFilename
       });
       return NextResponse.json(
         { error: "Missing imageData or filename" },
@@ -29,22 +37,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Detect image format from data URL
+    const isJpeg = imageData.startsWith("data:image/jpeg");
+    const contentType = isJpeg ? "image/jpeg" : "image/png";
+    
     // Convert base64 to buffer
     const base64Data = imageData.replace(/^data:image\/\w+;base64,/, "");
     console.log("Base64 data length after cleanup:", base64Data.length);
+    console.log("Detected content type:", contentType);
 
     const buffer = Buffer.from(base64Data, "base64");
     console.log("Buffer size:", buffer.length);
 
     // Generate unique filename with timestamp
-    const uniqueFilename = `${Date.now()}-${filename}`;
+    const uniqueFilename = `${Date.now()}-${actualFilename}`;
     console.log("Uploading to Supabase with filename:", uniqueFilename);
 
     // Upload to Supabase Storage
     const { data, error } = await supabase.storage
       .from("temp-images")
       .upload(uniqueFilename, buffer, {
-        contentType: "image/png",
+        contentType: contentType,
         cacheControl: "3600",
         upsert: false,
       });
