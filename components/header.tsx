@@ -20,6 +20,13 @@ export default function Header() {
     await signOut()
   }
 
+  const scrollToSection = (sectionId: string) => {
+    const element = document.getElementById(sectionId)
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' })
+    }
+  }
+
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50 relative">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
@@ -35,12 +42,18 @@ export default function Header() {
         <nav className="hidden md:flex items-center gap-8">
           {!user && (
             <>
-              <Link href="/#features" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
+              <button 
+                onClick={() => scrollToSection('features')} 
+                className="text-gray-600 hover:text-gray-900 text-sm font-medium cursor-pointer"
+              >
                 Features
-              </Link>
-              <Link href="/#pricing" className="text-gray-600 hover:text-gray-900 text-sm font-medium">
+              </button>
+              <button 
+                onClick={() => scrollToSection('pricing')} 
+                className="text-gray-600 hover:text-gray-900 text-sm font-medium cursor-pointer"
+              >
                 Pricing
-              </Link>
+              </button>
             </>
           )}
         </nav>

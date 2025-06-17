@@ -475,7 +475,7 @@ export default function PremiumUploader() {
       </div>
 
       {/* Demo Section with Comparison Slider */}
-      <div className="py-16 bg-gray-50">
+      <div id="features" className="py-16 bg-gray-50">
         <div className="max-w-6xl mx-auto px-6">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">

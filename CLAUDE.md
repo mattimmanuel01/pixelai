@@ -126,8 +126,15 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 All Replicate API calls use polling to avoid Vercel's 15-second timeout:
 
 1. **Create Prediction**: APIs return `predictionId` instead of waiting
-2. **Poll Status**: Frontend polls `/api/poll-prediction?id=<predictionId>` every 2 seconds
+2. **Poll Status**: Frontend polls `/api/poll-prediction?id=<predictionId>` with tab visibility-aware intervals
 3. **Handle Completion**: Process result when status becomes 'succeeded'
+
+#### Tab Visibility-Aware Polling
+- **Tab Active**: Polls every 2 seconds (normal speed)
+- **Tab Hidden**: Polls every 5 seconds (continues in background but slower)
+- **Tab Becomes Active**: Immediately resumes with 500ms delay
+- **Event Listeners**: Automatically adjusts polling speed based on `visibilitychange` events
+- **Cleanup**: Proper timeout clearing and event listener removal when polling completes
 
 ### Generative Fill API (`/api/generative-fill/route.ts`)
 - **Model**: stability-ai/stable-diffusion-inpainting
@@ -136,17 +143,25 @@ All Replicate API calls use polling to avoid Vercel's 15-second timeout:
 - **Output**: `predictionId` for polling
 - **Polling**: Max 2 minutes (120 attempts × 2 seconds)
 
+### AI Upscaler API (`/api/ai-upscaler/route.ts`)
+- **Model**: real-esrgan (Real-ESRGAN super resolution)
+- **Input**: Image URL (preserves original quality and dimensions)
+- **Output**: `predictionId` for polling, result converted to base64 for frontend convenience
+- **Quality Preservation**: Uses original image URL instead of canvas-converted data
+
 ### Image Expansion API (`/api/reframe-image/route.ts`)
 - **Model**: luma/reframe-image
 - **Parameters**: aspect_ratio, prompt
 - **Input**: Base64 image + aspect ratio + text prompt
 - **Output**: `predictionId` for polling
-- **Polling**: Max 2 minutes (120 attempts × 2 seconds)
+- **Storage**: Uploads input image to Supabase storage before sending to API
 
 ### Polling API (`/api/poll-prediction/route.ts`)
 - **Method**: GET with query parameter `id`
 - **Returns**: status, output, error, logs
 - **Statuses**: starting → processing → succeeded/failed/canceled
+- **Base64 Conversion**: Optional `convertToBase64=true` parameter for upscaler results
+- **Max Attempts**: 120 attempts (4 minutes max with adaptive intervals)
 
 ## UI Components
 
@@ -158,8 +173,8 @@ All Replicate API calls use polling to avoid Vercel's 15-second timeout:
 
 ### Custom Components
 - `CleanHeader`: Navigation with branding
-- `PremiumUploader`: Main interface with file handling
-- `AdvancedImageEditor`: Full canvas editor with tools
+- `PremiumUploader`: Main interface with file handling and ReactCompareSlider demos
+- `AdvancedImageEditor`: Full canvas editor with AI tools and ReactCompareSlider integration
 
 ## Pricing & Subscription Model
 
@@ -209,16 +224,18 @@ CREATE TABLE user_images (
 
 ## Current State
 - ✅ Background removal working
-- ✅ AI upscaling working with before/after comparison
+- ✅ AI upscaling working with before/after comparison (ReactCompareSlider)
 - ✅ Image expansion/reframing working
 - ✅ User authentication with Supabase
-- ✅ User dashboard with quota tracking
-- ✅ Landing page with pricing tiers
+- ✅ User dashboard with quota tracking and auto-refresh
+- ✅ Landing page with pricing tiers and demo sliders
 - ✅ Project history and management
 - ✅ Image persistence with Supabase storage
 - ✅ Fast dashboard loading with session persistence
 - ✅ Header dropdown menu with proper styling
 - ✅ Logo navigation without flicker
+- ✅ Tab visibility-aware polling (continues in background)
+- ✅ Quality preservation in upscaling (original dimensions)
 - ❌ Payment system not implemented (Stripe ready)
 - ❌ Email confirmations and notifications
 
@@ -245,6 +262,14 @@ CREATE TABLE user_images (
 - **Session Persistence**: Custom storage key (`pixelai-auth`) with explicit localStorage config
 - **Faster Fallbacks**: Reduced timeout values across authentication flow
 - **Better State Management**: Improved loading states and error boundaries
+- **Tab Visibility-Aware Polling**: Adaptive polling intervals prevent hanging when tab is inactive
+- **Quality Preservation**: Direct URL usage in upscaling prevents canvas-induced quality loss
+
+### ReactCompareSlider Integration
+- **Landing Page Demos**: Interactive before/after sliders for all three features
+- **Advanced Editor**: Professional before/after comparison for upscaled images
+- **Real Demo Images**: Uses actual processed images from the application
+- **Consistent Styling**: Unified appearance across all comparison interfaces
 
 ## Common Issues
 
@@ -262,6 +287,12 @@ CREATE TABLE user_images (
 - Use `temp-images` bucket for all image operations
 - Name files with `processed-` or `original-` prefixes plus timestamps
 - Convert blobs to base64 before uploading to storage
+
+### Tab Visibility & Polling Issues
+- Modern browsers throttle `setTimeout` calls when tabs are inactive
+- Solution implemented: Adaptive polling intervals (2s active, 5s hidden)
+- Event listeners automatically resume normal polling when tab becomes active
+- Proper cleanup prevents memory leaks from lingering timers and listeners
 
 ### Environment Variables
 - Client variables need `NEXT_PUBLIC_` prefix
