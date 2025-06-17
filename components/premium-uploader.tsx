@@ -553,12 +553,12 @@ export default function PremiumUploader() {
               </div>
             </div>
 
-            {/* Placeholder for future AI Upscaler demo */}
+            {/* AI Upscaler Demo */}
             <div className="max-w-2xl mx-auto">
               <div className="text-center mb-6">
                 <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-full text-sm font-medium mb-4">
                   <Zap className="w-4 h-4" />
-                  AI Upscaler - Coming Soon
+                  AI Upscaler
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">
                   AI-Powered Image Enhancement
@@ -568,20 +568,38 @@ export default function PremiumUploader() {
                 </p>
               </div>
               
-              <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-8 text-center border border-blue-200">
-                <div className="w-16 h-16 bg-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Zap className="w-8 h-8 text-white" />
-                </div>
-                <p className="text-blue-700 font-medium">AI Upscaler demo will be added here</p>
+              <div className="rounded-2xl overflow-hidden shadow-lg">
+                <ReactCompareSlider
+                  boundsPadding={0}
+                  clip="both"
+                  itemOne={
+                    <ReactCompareSliderImage 
+                      alt="Original image" 
+                      src="/upscale_beforee.png"
+                    />
+                  }
+                  itemTwo={
+                    <ReactCompareSliderImage 
+                      alt="AI upscaled image" 
+                      src="/upscaled-image.png"
+                    />
+                  }
+                  keyboardIncrement="5%"
+                  position={50}
+                  style={{
+                    width: '100%',
+                    height: '400px'
+                  }}
+                />
               </div>
             </div>
 
-            {/* Placeholder for future Image Expansion demo */}
+            {/* Image Expansion Demo */}
             <div className="max-w-2xl mx-auto">
               <div className="text-center mb-6">
                 <div className="inline-flex items-center gap-2 bg-purple-50 text-purple-700 px-4 py-2 rounded-full text-sm font-medium mb-4">
                   <Edit className="w-4 h-4" />
-                  Image Expansion - Coming Soon
+                  Image Expansion
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">
                   Generative Image Expansion
@@ -591,11 +609,57 @@ export default function PremiumUploader() {
                 </p>
               </div>
               
-              <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-2xl p-8 text-center border border-purple-200">
-                <div className="w-16 h-16 bg-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <Edit className="w-8 h-8 text-white" />
-                </div>
-                <p className="text-purple-700 font-medium">Image Expansion demo will be added here</p>
+              <div className="rounded-2xl overflow-hidden shadow-lg">
+                <ReactCompareSlider
+                  boundsPadding={0}
+                  clip="both"
+                  itemOne={
+                    <div style={{ 
+                      width: '100%', 
+                      height: '600px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: '#f8f9fa'
+                    }}>
+                      <img
+                        src="/expand-before.png"
+                        alt="Original image"
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          objectFit: 'contain'
+                        }}
+                      />
+                    </div>
+                  }
+                  itemTwo={
+                    <div style={{ 
+                      width: '100%', 
+                      height: '600px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: '#f8f9fa'
+                    }}>
+                      <img
+                        src="/expand-after.png"
+                        alt="AI expanded image"
+                        style={{
+                          maxWidth: '100%',
+                          maxHeight: '100%',
+                          objectFit: 'contain'
+                        }}
+                      />
+                    </div>
+                  }
+                  keyboardIncrement="5%"
+                  position={50}
+                  style={{
+                    width: '100%',
+                    height: '600px'
+                  }}
+                />
               </div>
             </div>
           </div>
